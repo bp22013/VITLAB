@@ -407,6 +407,11 @@
                 routeData.forEach(function (row) {
                     let conditionMet = false;
                     switch (dataType) {
+                        case 'sidewalk':
+                            if (row.sidewalk > 0) {
+                                conditionMet = true;
+                            }
+                            break;
                         case 'signal':
                             if (row.signal == 1) {
                                 conditionMet = true;

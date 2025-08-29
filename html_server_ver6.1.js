@@ -78,14 +78,14 @@ const server = http.createServer(async (req, res) => {
             ].join(' ');
 
             try {
-                console.log(`実行コマンド1: ./djkd ${p.get('param1')} ${p.get('param2')}`);
+                console.log(`実行コマンド1: ./spfa21 ${p.get('param1')} ${p.get('param2')}`);
                 console.log(`実行コマンド2: ./up44 ${args}`);
 
-                const shortest = execSync(`./djk21 ${p.get('param1')} ${p.get('param2')}`, {
+                const shortest = execSync(`./spfa21 ${p.get('param1')} ${p.get('param2')}`, {
                     encoding: 'utf8',
                     cwd: __dirname,
                 });
-                console.log(`djk21実行結果: ${shortest}`);
+                console.log(`spfa21実行結果: ${shortest}`);
 
                 const userPref = execSync(`./up44 ${args}`, {
                     encoding: 'utf8',

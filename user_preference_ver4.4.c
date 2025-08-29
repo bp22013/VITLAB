@@ -141,18 +141,6 @@ int main(int argc, char *argv[]) {
     //確認
     printf("処理が完了しました。結果は '%s' に保存されました。\n", OUTPUT_FILE);
 
-    char str[50];
-    //始点終点
-    //printf("start_node:%d, end_node:%d\n",atoi(argv[NUM_PRE+1]),atoi(argv[NUM_PRE+2]));
-    //sprintf(str,"./test");
-   
-   
-    sprintf(str,"./djk21 %d %d",atoi(argv[NUM_PRE+1]),atoi(argv[NUM_PRE+2]));
-    printf("%s\n",str);
-    system(str);
-   
-   
-   
-    //system("./djk21 %d %d",atoi(argv[NUM_PRE+1]),atoi(argv[NUM_PRE+2]));
+    
     return 0;
 }
