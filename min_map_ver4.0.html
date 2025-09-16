@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Minimum Route Map</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf/turf.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+        <style>
+            #loading-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 10000;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                color: white;
+                font-size: 2em;
+                font-family: sans-serif;
+            }
+            .loading-hidden {
+                display: none !important;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="loading-overlay" class="loading-hidden">
+            <div id="loading-message"></div>
+        </div>
+
+        <div id="map" style="width: 600px; height: 400px"></div>
+        <button onclick="loadRouteFromCSV()">Load route from CSV</button>
+        <button onclick="loadRouteFromCSV2()">Load route2 from CSV</button>
+        <button onclick="clearGeoJSON()">Clear route</button>
+
+        <button onclick="viewAREA('./RE_AREA.geojson')">対象範囲</button>
+        <button onclick="displayDataFromCSV('sidewalk', 'red')">歩道</button>
+        <button onclick="displayDataFromCSV('signal', 'blue')">信号</button>
+        <button onclick="displayDataFromCSV('road_width1', 'purple')">道路幅1</button>
+        <button onclick="displayDataFromCSV('road_width2', 'brown')">道路幅2</button>
+        <button onclick="displayDataFromCSV('road_width3', 'darkgreen')">道路幅3</button>
+        <button onclick="loadGeoAssign('illumination.txt','orange')">照明</button>
+        <button onclick="loadGeoAssign('nature.txt','green')">自然</button>
+        <button onclick="loadGeoAssign('park.txt','red')">公園</button>
+        <button onclick="loadGeoAssign('garbage.txt','orange')">ごみ集積場</button>
+        <button onclick="loadGeoAssign('toilet.txt','red')">公衆トイレ</button>
+        <button onclick="loadGeoAssign('crosswalk1.txt','red')">横断歩道</button>
+        <button onclick="loadGeoAssign('crosswalk-1.txt','red')">横断可能</button>
+
+        <div
+            id="coordinates"
+            style="margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-radius: 5px"
+        >
+            <strong>クリックした座標:</strong>
+            <span id="coord-display">マップをクリックしてください</span>
+        </div>
+
+        <div>
+            <h5>始点および終点を設定(地図をクリックして指定も可能)</h5>
+            <label for="param1(1-181)">始点 :</label>
+            <input type="text" id="param1" value="1" />
+            <label for="param2(1-181)">終点 :</label>
+            <input type="text" id="param2" value="82" />
+        </div>
+        <div>
+            <h5>各条件の重みを設定(半角数字)</h5>
+            <label for="weight0" style="width: 150px; display: inline-block">距離:(+)</label>
+            <input
+                type="range"
+                id="weight0"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight0')"
+            />
+            <label for="textweight0"></label>
+            <input type="text" id="textweight0" value="0" oninput="syncValues(this, 'weight0')" />
+            <label for="weight1" style="width: 150px; display: inline-block">勾配(+):</label>
+            <input
+                type="range"
+                id="weight1"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight1')"
+            />
+            <label for="textweight1"></label>
+            <input
+                type="text"
+                id="textweight1"
+                value="0"
+                oninput="syncValues(this, 'textweight1')"
+            />
+            <br />
+            <label for="weight4" style="width: 150px; display: inline-block">歩道(-):</label>
+            <input
+                type="range"
+                id="weight4"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight4')"
+            />
+            <label for="textweight4"></label>
+            <input type="text" id="textweight4" value="0" oninput="syncValues(this, 'weight4')" />
+            <label for="weight5" style="width: 150px; display: inline-block">信号(+):</label>
+            <input
+                type="range"
+                id="weight5"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight5')"
+            />
+            <label for="textweight5"></label>
+            <input type="text" id="textweight5" value="0" oninput="syncValues(this, 'weight5')" />
+            <br />
+            <label for="weight6" style="width: 150px; display: inline-block">道路幅(+):</label>
+            <input
+                type="range"
+                id="weight6"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight6')"
+            />
+            <label for="textweight6"></label>
+            <input type="text" id="textweight6" value="0" oninput="syncValues(this, 'weight6')" />
+            <label for="weight7" style="width: 150px; display: inline-block">照明(-):</label>
+            <input
+                type="range"
+                id="weight7"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight7')"
+            />
+            <label for="textweight7"></label>
+            <input type="text" id="textweight7" value="0" oninput="syncValues(this, 'weight7')" />
+            <br />
+            <label for="weight8" style="width: 150px; display: inline-block">自然(-):</label>
+            <input
+                type="range"
+                id="weight8"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight8')"
+            />
+            <label for="textweight8"></label>
+            <input type="text" id="textweight8" value="0" oninput="syncValues(this, 'weight8')" />
+            <label for="weight9" style="width: 150px; display: inline-block">公園(-):</label>
+            <input
+                type="range"
+                id="weight9"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight9')"
+            />
+            <label for="textweight9"></label>
+            <input type="text" id="textweight9" value="0" oninput="syncValues(this, 'weight9')" />
+            <br />
+            <label for="weight10" style="width: 150px; display: inline-block">ごみ集積場(+):</label>
+            <input
+                type="range"
+                id="weight10"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight10')"
+            />
+            <label for="textweight10"></label>
+            <input type="text" id="textweight10" value="0" oninput="syncValues(this, 'weight10')" />
+            <label for="weight11" style="width: 150px; display: inline-block">公衆トイレ(-):</label>
+            <input
+                type="range"
+                id="weight11"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight11')"
+            />
+            <label for="textweight11"></label>
+            <input type="text" id="textweight11" value="0" oninput="syncValues(this, 'weight11')" />
+            <br />
+            <label for="weight12" style="width: 150px; display: inline-block">横断歩道(-):</label>
+            <input
+                type="range"
+                id="weight12"
+                value="0"
+                min="-100.0"
+                max="100.0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight12')"
+            />
+            <label for="textweight12"></label>
+            <input type="text" id="textweight12" value="0" oninput="syncValues(this, 'weight12')" />
+            <h5>勾配の最大許容値を設定(半角数字,単位 m/m)</h5>
+            <label for="weight2" style="width: 150px; display: inline-block">上りの最大勾配:</label>
+            <input
+                type="range"
+                id="weight2"
+                value="100"
+                min="0"
+                max="100"
+                step="0.1"
+                oninput="syncValues(this, 'textweight2')"
+            />
+            <label for="textweight2"></label>
+            <input type="text" id="textweight2" value="100" oninput="syncValues(this, 'weight2')" />
+            <label for="weight3" style="width: 150px; display: inline-block">下りの最大勾配:</label>
+            <input
+                type="range"
+                id="weight3"
+                value="-100"
+                min="-100"
+                max="0"
+                step="0.1"
+                oninput="syncValues(this, 'textweight3')"
+            />
+            <label for="textweight3"></label>
+            <input
+                type="text"
+                id="textweight3"
+                value="-100"
+                oninput="syncValues(this, 'weight3')"
+            />
+
+            <button onclick="">Set</button>
+        </div>
+
+        <script>
+            var map = L.map('map', { center: [35.95017, 139.64735], zoom: 15 });
+            var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution:
+                    '© <a href="http://osm.org/copyright">OpenStreetMap</a> contributors, ' +
+                    '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
+            });
+            tileLayer.addTo(map);
+
+            var geojsonLayers = [];
+            var routeData = [];
+            // ▼▼▼【追加】前回の計算結果テキストを保持する変数 ▼▼▼
+            let previousResultText = null;
+
+            function setLoadingState(isLoading, message = '') {
+                const overlay = document.getElementById('loading-overlay');
+                const messageElement = document.getElementById('loading-message');
+                const controls = document.querySelectorAll('button, input');
+
+                if (isLoading) {
+                    messageElement.textContent = message;
+                    overlay.classList.remove('loading-hidden');
+                    controls.forEach((control) => (control.disabled = true));
+                } else {
+                    overlay.classList.add('loading-hidden');
+                    controls.forEach((control) => (control.disabled = false));
+                }
+            }
+
+            async function loadCSVData() {
+                if (routeData.length > 0) return routeData;
+                try {
+                    const response = await fetch('./oomiya_route_inf_4.csv');
+                    const csvText = await response.text();
+                    const parsed = Papa.parse(csvText, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                    });
+                    routeData = parsed.data;
+                    console.log('CSVデータをロードしました:', routeData.length, '行');
+                    return routeData;
+                } catch (error) {
+                    console.error('CSVデータのロードに失敗:', error);
+                    return [];
+                }
+            }
+
+            // ▼▼▼【追加】ルート描画ロジックを共通関数に切り出し ▼▼▼
+            async function drawRouteFromResult(resultText, color, weight) {
+                const lines = resultText.split('\n').filter((line) => line.trim() !== '');
+                const geojsonFiles = lines.map((line) => line.trim());
+                const geojsonFolder = './oomiya_line/';
+
+                // Promise.allですべてのGeoJSONファイルの読み込みと描画が終わるのを待つ
+                await Promise.all(
+                    geojsonFiles.map((filename) =>
+                        fetch(geojsonFolder + filename)
+                            .then((res) => {
+                                if (!res.ok) throw new Error(`${filename}の読み込みに失敗`);
+                                return res.json();
+                            })
+                            .then((data) => {
+                                const geojsonLayer = L.geoJSON(data, {
+                                    style: { color: color, weight: weight, opacity: 1.0 },
+                                }).addTo(map);
+                                geojsonLayers.push(geojsonLayer);
+                            })
+                    )
+                );
+            }
+
+            // ▼▼▼【修正】経路計算と描画を行うメイン関数 ▼▼▼
+            async function loadRouteFromCSV() {
+                try {
+                    await loadCSVData();
+                    await calc(); // サーバーでの計算実行
+
+                    // 計算後の結果ファイルを取得
+                    const response = await fetch('result2.txt');
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                    const newResultText = await response.text();
+
+                    // 前回の結果と比較
+                    if (newResultText === previousResultText) {
+                        console.log('計算結果に変更がなかったため、メッセージは表示しません。');
+                        // 地図がクリアされている可能性があるので再描画だけ行う
+                        await drawRouteFromResult(newResultText, 'red', 10);
+                        return; // ここで処理を終了
+                    }
+
+                    // 結果が新しい場合のみ、ローディング画面を表示
+                    previousResultText = newResultText; // 結果を更新
+                    setLoadingState(true, '計算中...');
+
+                    // 描画処理
+                    await drawRouteFromResult(newResultText, 'red', 10);
+
+                    // 描画が終わったらメッセージを変更
+                    const messageElement = document.getElementById('loading-message');
+                    messageElement.textContent = '計算終了';
+
+                    // 3秒後にローディング画面を消す
+                    setTimeout(() => {
+                        setLoadingState(false);
+                    }, 1500);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                    alert('エラーが発生しました: ' + error.message);
+                    setLoadingState(false); // エラー時はローディング画面を即座に消す
+                }
+            }
+
+            // ▼▼▼【修正】色違い版も同様のロジックに修正 ▼▼▼
+            async function loadRouteFromCSV2() {
+                try {
+                    await loadCSVData();
+                    await calc();
+
+                    const response = await fetch('result2.txt');
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                    const newResultText = await response.text();
+
+                    if (newResultText === previousResultText) {
+                        console.log('計算結果に変更がなかったため、メッセージは表示しません。');
+                        await drawRouteFromResult(newResultText, 'blue', 6);
+                        return;
+                    }
+
+                    previousResultText = newResultText;
+                    setLoadingState(true, '計算中...');
+
+                    await drawRouteFromResult(newResultText, 'blue', 6);
+
+                    const messageElement = document.getElementById('loading-message');
+                    messageElement.textContent = '計算終了';
+
+                    setTimeout(() => {
+                        setLoadingState(false);
+                    }, 1500);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                    alert('エラーが発生しました: ' + error.message);
+                    setLoadingState(false);
+                }
+            }
+
+            // ... (以降のコードは変更なし) ...
+
+            function loadGeoAssign(resultFile, color) {
+                var geojsonFolder = './oomiya_line/';
+                fetch(resultFile)
+                    .then((response) => {
+                        if (!response.ok)
+                            throw new Error(
+                                `Failed to fetch ${resultFile}: ${response.statusText}`
+                            );
+                        return response.text();
+                    })
+                    .then((text) => {
+                        var lines = text.split('\n').filter((line) => line.trim() !== '');
+                        var geojsonFiles = lines.map((line) => line.trim());
+                        console.log(`Loading ${geojsonFiles.length} files from ${resultFile}`);
+                        geojsonFiles.forEach(function (filename) {
+                            fetch(geojsonFolder + filename)
+                                .then((response) => {
+                                    if (!response.ok)
+                                        throw new Error(
+                                            `Failed to fetch ${filename}: ${response.statusText}`
+                                        );
+                                    return response.json();
+                                })
+                                .then((data) => {
+                                    var geojsonLayer = L.geoJSON(data, {
+                                        style: { color: color, weight: 15, opacity: 0.2 },
+                                    }).addTo(map);
+                                    geojsonLayers.push(geojsonLayer);
+                                })
+                                .catch((error) =>
+                                    console.error(`Error loading GeoJSON ${filename}:`, error)
+                                );
+                        });
+                    })
+                    .catch((error) => console.error(`Error loading ${resultFile}:`, error));
+            }
+
+            function drawGeoJSON(url, color, weight, opacity) {
+                fetch(url)
+                    .then((response) => {
+                        if (!response.ok) {
+                            if (response.status === 404) return null;
+                            throw new Error(`Error loading GeoJSON: ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then((data) => {
+                        if (data) {
+                            var geojsonLayer = L.geoJSON(data, {
+                                style: { color: color, weight: weight, opacity: opacity },
+                            }).addTo(map);
+                            geojsonLayers.push(geojsonLayer);
+                        }
+                    })
+                    .catch((error) => console.error(error.message));
+            }
+
+            async function displayDataFromCSV(dataType, color) {
+                await loadCSVData();
+                var geojsonFolder = './oomiya_line/';
+                routeData.forEach(function (row) {
+                    let conditionMet = false;
+                    switch (dataType) {
+                        case 'sidewalk':
+                            if (row.sidewalk == 1) conditionMet = true;
+                            break;
+                        case 'signal':
+                            if (row.signal == 1) conditionMet = true;
+                            break;
+                        case 'road_width1':
+                            if (row.road_width == 1) conditionMet = true;
+                            break;
+                        case 'road_width2':
+                            if (row.road_width == 2) conditionMet = true;
+                            break;
+                        case 'road_width3':
+                            if (row.road_width >= 3) conditionMet = true;
+                            break;
+                    }
+                    if (conditionMet) {
+                        const filename = `${row.node1}-${row.node2}.geojson`;
+                        const url = geojsonFolder + filename;
+                        drawGeoJSON(url, color, 15, 0.3);
+                    }
+                });
+            }
+
+            function calc() {
+                var param1 = document.getElementById('param1').value;
+                var param2 = document.getElementById('param2').value;
+                var weight0 = document.getElementById('weight0').value;
+                var weight1 = document.getElementById('weight1').value;
+                var weight2 = document.getElementById('weight2').value;
+                var weight3 = document.getElementById('weight3').value;
+                var weight4 = document.getElementById('weight4').value;
+                var weight5 = document.getElementById('weight5').value;
+                var weight6 = document.getElementById('weight6').value;
+                var weight7 = document.getElementById('weight7').value;
+                var weight8 = document.getElementById('weight8').value;
+                var weight9 = document.getElementById('weight9').value;
+                var weight10 = document.getElementById('weight10').value;
+                var weight11 = document.getElementById('weight11').value;
+                var weight12 = document.getElementById('weight12').value;
+                const baseUrl = window.location.origin;
+                return fetch(`${baseUrl}/calc`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `param1=${encodeURIComponent(param1)}&param2=${encodeURIComponent(
+                        param2
+                    )}&weight0=${encodeURIComponent(weight0)}&weight1=${encodeURIComponent(
+                        weight1
+                    )}&weight2=${encodeURIComponent(weight2)}&weight3=${encodeURIComponent(
+                        weight3
+                    )}&weight4=${encodeURIComponent(weight4)}&weight5=${encodeURIComponent(
+                        weight5
+                    )}&weight6=${encodeURIComponent(weight6)}&weight7=${encodeURIComponent(
+                        weight7
+                    )}&weight8=${encodeURIComponent(weight8)}&weight9=${encodeURIComponent(
+                        weight9
+                    )}&weight10=${encodeURIComponent(weight10)}&weight11=${encodeURIComponent(
+                        weight11
+                    )}&weight12=${encodeURIComponent(weight12)}`,
+                })
+                    .then((response) => {
+                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                        return response.text();
+                    })
+                    .then((output) => {
+                        console.log('計算完了:', output);
+                    });
+            }
+
+            function clearGeoJSON() {
+                geojsonLayers.forEach(function (layer) {
+                    map.removeLayer(layer);
+                });
+                geojsonLayers = [];
+            }
+
+            var geojsonFeatures_near = [];
+            var geojsonFileNames_near = [];
+            var markerList_near = [];
+            var markerFileNames_near = [];
+
+            function setnode() {
+                var start_node = markerFileNames_near.slice(0, 1)[0] || '';
+                var end_node = markerFileNames_near.slice(1, 2)[0] || '';
+                var start_id = document.getElementById('param1');
+                var end_id = document.getElementById('param2');
+                start_id.value = start_node.replace('.geojson', '');
+                end_id.value = end_node.replace('.geojson', '');
+            }
+
+            function displayCoordinates(lat, lng) {
+                var coordDisplay = document.getElementById('coord-display');
+                coordDisplay.innerHTML = `緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`;
+            }
+
+            fetch('./point_name.txt')
+                .then((response) => response.text())
+                .then((data) => {
+                    const fileNames = data.trim().split('\n');
+                    fileNames.forEach((fileName) => {
+                        const filePath = './oomiya_point/' + fileName;
+                        fetch(filePath)
+                            .then((response) => response.json())
+                            .then((geojsonData) => {
+                                geojsonFeatures_near.push(geojsonData);
+                                geojsonFileNames_near.push(fileName);
+                            })
+                            .catch((error) =>
+                                console.error('Error loading GeoJSON file:', filePath, error)
+                            );
+                    });
+                })
+                .catch((error) => console.error('Error loading point_name.txt:', error));
+
+            map.on('click', function (e) {
+                displayCoordinates(e.latlng.lat, e.latlng.lng);
+                if (geojsonFeatures_near.length === 0) {
+                    alert('GeoJSONデータがまだ読み込まれていません。');
+                    return;
+                }
+                var clickedPoint = turf.point([e.latlng.lng, e.latlng.lat]);
+                var nearestPoint = null;
+                var nearestFile = null;
+                var minDistance = Infinity;
+                geojsonFeatures_near.forEach(function (feature, index) {
+                    var currentPoint = turf.point(feature.geometry.coordinates);
+                    var distance = turf.distance(clickedPoint, currentPoint, {
+                        units: 'kilometers',
+                    });
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestPoint = feature;
+                        nearestFile = geojsonFileNames_near[index];
+                    }
+                });
+                if (nearestPoint) {
+                    if (markerList_near.length >= 2) {
+                        var removedMarker = markerList_near.shift();
+                        map.removeLayer(removedMarker);
+                    }
+                    var marker = L.marker([
+                        nearestPoint.geometry.coordinates[1],
+                        nearestPoint.geometry.coordinates[0],
+                    ])
+                        .addTo(map)
+                        .bindPopup(
+                            `${nearestFile.replace('.geojson', '')}<br>座標: ${e.latlng.lat.toFixed(
+                                6
+                            )}, ${e.latlng.lng.toFixed(6)}`
+                        )
+                        .openPopup();
+                    markerList_near.push(marker);
+                    markerFileNames_near.push(nearestFile);
+                }
+                setnode();
+            });
+
+            function syncValues(source, targetId) {
+                const target = document.getElementById(targetId);
+                target.value = source.value;
+            }
+
+            async function viewAREA(filePath) {
+                try {
+                    const response = await fetch(filePath);
+                    if (!response.ok)
+                        throw new Error(`Failed to fetch GeoJSON file: ${response.statusText}`);
+                    const geojsonData = await response.json();
+                    var geojsonLayer = L.geoJSON(geojsonData, {
+                        style: { color: 'black', weight: 8, opacity: 0.5 },
+                    }).addTo(map);
+                    geojsonLayers.push(geojsonLayer);
+                } catch (error) {
+                    console.error('Error loading GeoJSON:', error);
+                }
+            }
+
+            window.addEventListener('load', function () {
+                loadCSVData();
+            });
+        </script>
+    </body>
+</html>
