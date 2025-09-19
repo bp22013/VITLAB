@@ -1,13 +1,15 @@
+/* SPFAアルゴリズム */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
 #include <time.h>
 #include <stdbool.h>
 
-#define MAX_NODES 300
+#define MAX_NODES 300 // 最大のノード数を指定
 #define INF DBL_MAX
 
-// Queue implementation
+// 
 typedef struct {
     int items[MAX_NODES];
     int front;
@@ -147,6 +149,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // result.csvの読み込み
     FILE *file = fopen("result.csv", "r");
     if (file == NULL) {
         printf("Error: Could not open result.csv\n");
@@ -165,17 +168,19 @@ int main(int argc, char *argv[]) {
     fclose(file);
     num_nodes++;
 
+    // spfaでの計算
     spfa(start_node, num_nodes);
 
+    // result.txtの読み込み
     FILE *outfile = fopen("result2.txt", "w");
     if (outfile == NULL) {
-        printf("Error: result2.txt cannot be opened\n");
+        printf("エラー: result2.txt が開けません\n");
         exit(1);
     }
     write_path(end_node, outfile);
     fclose(outfile);
 
     end_clock = clock();
-    printf("clock:%f\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
+    printf("計算時間:%f\n", (double)(end_clock - start_clock) / CLOCKS_PER_SEC);
     return 0;
 }

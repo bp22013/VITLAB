@@ -534,59 +534,75 @@
                     map.removeLayer(layer);
                 });
                 geojsonLayers = [];
+                const infoDiv = document.getElementById('route-info');
+                infoDiv.innerHTML =
+                    '<h4>経路情報</h4><p>経路を検索するとここに詳細が表示されます。</p>';
             }
 
             var geojsonFeatures_near = [];
             var geojsonFileNames_near = [];
-            var markerList_near = [];
-            var markerFileNames_near = [];
-
-            function setnode() {
-                var start_node = markerFileNames_near.slice(0, 1)[0] || '';
-                var end_node = markerFileNames_near.slice(1, 2)[0] || '';
-                var start_id = document.getElementById('param1');
-                var end_id = document.getElementById('param2');
-                start_id.value = start_node.replace('.geojson', '');
-                end_id.value = end_node.replace('.geojson', '');
-            }
 
             function displayCoordinates(lat, lng) {
                 var coordDisplay = document.getElementById('coord-display');
                 coordDisplay.innerHTML = `緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`;
             }
 
-            fetch('./point_name.txt')
-                .then((response) => response.text())
-                .then((data) => {
-                    const fileNames = data.trim().split('\n');
-                    fileNames.forEach((fileName) => {
-                        const filePath = './oomiya_point/' + fileName;
-                        fetch(filePath)
-                            .then((response) => response.json())
-                            .then((geojsonData) => {
-                                geojsonFeatures_near.push(geojsonData);
-                                geojsonFileNames_near.push(fileName);
-                            })
-                            .catch((error) =>
-                                console.error('Error loading GeoJSON file:', filePath, error)
-                            );
-                    });
-                })
-                .catch((error) => console.error('Error loading point_name.txt:', error));
+            const blueIcon = new L.Icon({
+                iconUrl:
+                    'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                shadowUrl:
+                    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41],
+            });
+
+            let startMarker = null;
+
+            // Load all point geojson files
+            const pointPromises = [];
+            for (let i = 1; i <= 300; i++) {
+                // Adjust the upper limit if needed
+                const fileName = `${i}.geojson`;
+                const filePath = './oomiya_point/' + fileName;
+                pointPromises.push(
+                    fetch(filePath)
+                        .then((response) => {
+                            if (response.ok) {
+                                return response.json().then((geojsonData) => {
+                                    geojsonFeatures_near.push(geojsonData);
+                                    geojsonFileNames_near.push(fileName);
+                                });
+                            }
+                        })
+                        .catch((error) => {
+                            // Ignore errors for non-existent files
+                        })
+                );
+            }
+
+            Promise.all(pointPromises).then(() => {
+                console.log(`${geojsonFeatures_near.length} points loaded.`);
+            });
 
             map.on('click', function (e) {
                 displayCoordinates(e.latlng.lat, e.latlng.lng);
                 if (geojsonFeatures_near.length === 0) {
-                    alert('GeoJSONデータがまだ読み込まれていません。');
+                    alert(
+                        'GeoJSONデータがまだ読み込まれていません。しばらく待ってからもう一度お試しください。'
+                    );
                     return;
                 }
-                var clickedPoint = turf.point([e.latlng.lng, e.latlng.lat]);
-                var nearestPoint = null;
-                var nearestFile = null;
-                var minDistance = Infinity;
+
+                const clickedPoint = turf.point([e.latlng.lng, e.latlng.lat]);
+                let nearestPoint = null;
+                let nearestFile = null;
+                let minDistance = Infinity;
+
                 geojsonFeatures_near.forEach(function (feature, index) {
-                    var currentPoint = turf.point(feature.geometry.coordinates);
-                    var distance = turf.distance(clickedPoint, currentPoint, {
+                    const currentPoint = turf.point(feature.geometry.coordinates);
+                    const distance = turf.distance(clickedPoint, currentPoint, {
                         units: 'kilometers',
                     });
                     if (distance < minDistance) {
@@ -595,26 +611,25 @@
                         nearestFile = geojsonFileNames_near[index];
                     }
                 });
+
                 if (nearestPoint) {
-                    if (markerList_near.length >= 2) {
-                        var removedMarker = markerList_near.shift();
-                        map.removeLayer(removedMarker);
+                    if (startMarker) {
+                        map.removeLayer(startMarker);
                     }
-                    var marker = L.marker([
-                        nearestPoint.geometry.coordinates[1],
-                        nearestPoint.geometry.coordinates[0],
-                    ])
+
+                    startMarker = L.marker(
+                        [
+                            nearestPoint.geometry.coordinates[1],
+                            nearestPoint.geometry.coordinates[0],
+                        ],
+                        { icon: blueIcon }
+                    )
                         .addTo(map)
-                        .bindPopup(
-                            `${nearestFile.replace('.geojson', '')}<br>座標: ${e.latlng.lat.toFixed(
-                                6
-                            )}, ${e.latlng.lng.toFixed(6)}`
-                        )
+                        .bindPopup(`始点: ${nearestFile.replace('.geojson', '')}`)
                         .openPopup();
-                    markerList_near.push(marker);
-                    markerFileNames_near.push(nearestFile);
+
+                    document.getElementById('param1').value = nearestFile.replace('.geojson', '');
                 }
-                setnode();
             });
 
             function syncValues(source, targetId) {
