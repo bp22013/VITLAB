@@ -271,10 +271,42 @@
             });
             tileLayer.addTo(map);
 
-            var geojsonLayers = [];
+            let route1Layers = [];
+            let route2Layers = [];
+            let otherLayers = [];
             var routeData = [];
-            // ▼▼▼【追加】前回の計算結果テキストを保持する変数 ▼▼▼
-            let previousResultText = null;
+            let route1Info = null;
+            let route2Info = null;
+
+            function updateRouteInfoDisplay() {
+                const infoDiv = document.getElementById('route-info');
+                let content = '<h4>経路情報</h4>';
+
+                if (!route1Info && !route2Info) {
+                    content += '<p>経路を検索するとここに詳細が表示されます。</p>';
+                }
+
+                if (route1Info) {
+                    content += `
+                        <div style="border: 2px solid red; padding: 8px; margin-bottom: 10px; border-radius: 5px;">
+                            <h5>経路1 (赤)</h5>
+                            <p style="margin: 2px 0;"><strong>総距離:</strong> ${route1Info.totalDistance.toFixed(2)} m</p>
+                            <p style="margin: 2px 0;"><strong>所要時間:</strong> ${route1Info.totalTime.toFixed(2)} 分</p>
+                        </div>
+                    `;
+                }
+
+                if (route2Info) {
+                    content += `
+                        <div style="border: 2px solid blue; padding: 8px; border-radius: 5px;">
+                            <h5>経路2 (青)</h5>
+                            <p style="margin: 2px 0;"><strong>総距離:</strong> ${route2Info.totalDistance.toFixed(2)} m</p>
+                            <p style="margin: 2px 0;"><strong>所要時間:</strong> ${route2Info.totalTime.toFixed(2)} 分</p>
+                        </div>
+                    `;
+                }
+                infoDiv.innerHTML = content;
+            }
 
             function setLoadingState(isLoading, message = '') {
                 const overlay = document.getElementById('loading-overlay');
@@ -310,18 +342,16 @@
                 }
             }
 
-            // ▼▼▼【追加】ルート情報計算＆表示関数 ▼▼▼
-            function calculateAndDisplayRouteInfo(resultText) {
+            function calculateRouteInfo(resultText) {
                 if (!routeData || routeData.length === 0) {
                     console.error('経路情報データ(CSV)が読み込まれていません。');
-                    return;
+                    return null;
                 }
 
                 const segments = resultText.split('\n').filter((line) => line.trim() !== '');
                 let totalDistance = 0;
                 let totalTime = 0;
 
-                // パフォーマンス向上のため、CSVデータをMapに変換
                 const routeDataMap = new Map();
                 routeData.forEach(row => {
                     if (row.node1 !== undefined && row.node2 !== undefined) {
@@ -332,11 +362,10 @@
                 segments.forEach((segment) => {
                     const fileName = segment.replace('.geojson', '');
                     const nodes = fileName.split('-');
-                    if (nodes.length === 2) { // "node1-node2" の形式のみを処理
+                    if (nodes.length === 2) {
                         const node1_str = nodes[0];
                         const node2_str = nodes[1];
                         
-                        // 両方向のキーを試す
                         let routeInfo = routeDataMap.get(`${node1_str}-${node2_str}`);
                         if (!routeInfo) {
                             routeInfo = routeDataMap.get(`${node2_str}-${node1_str}`);
@@ -350,25 +379,30 @@
                         }
                     }
                 });
-
-                const infoDiv = document.getElementById('route-info');
-                infoDiv.innerHTML = `
-                    <h4>経路情報</h4>
-                    <p><strong>総距離:</strong> ${totalDistance.toFixed(2)} m</p>
-                    <p><strong>所要時間:</strong> ${totalTime.toFixed(2)} 分</p>
-                `;
+                return { totalDistance, totalTime };
             }
 
-            // ▼▼▼【修正】ルート描画ロジックを共通関数に切り出し、情報表示関数を呼び出す ▼▼▼
-            async function drawRouteFromResult(resultText, color, weight) {
+            async function drawRouteFromResult(resultText, color, weight, routeId) {
+                if (routeId === 1) {
+                    route1Layers.forEach(layer => map.removeLayer(layer));
+                    route1Layers = [];
+                } else if (routeId === 2) {
+                    route2Layers.forEach(layer => map.removeLayer(layer));
+                    route2Layers = [];
+                }
+
                 const lines = resultText.split('\n').filter((line) => line.trim() !== '');
                 const geojsonFiles = lines.map((line) => line.trim());
                 const geojsonFolder = './oomiya_line/';
 
-                // 経路情報を計算して表示
-                calculateAndDisplayRouteInfo(resultText);
+                const info = calculateRouteInfo(resultText);
+                if (routeId === 1) {
+                    route1Info = info;
+                } else if (routeId === 2) {
+                    route2Info = info;
+                }
+                updateRouteInfoDisplay();
 
-                // Promise.allですべてのGeoJSONファイルの読み込みと描画が終わるのを待つ
                 await Promise.all(
                     geojsonFiles.map((filename) =>
                         fetch(geojsonFolder + filename)
@@ -380,56 +414,17 @@
                                 const geojsonLayer = L.geoJSON(data, {
                                     style: { color: color, weight: weight, opacity: 1.0 },
                                 }).addTo(map);
-                                geojsonLayers.push(geojsonLayer);
+                                if (routeId === 1) {
+                                    route1Layers.push(geojsonLayer);
+                                } else {
+                                    route2Layers.push(geojsonLayer);
+                                }
                             })
                     )
                 );
             }
 
-            // ▼▼▼【修正】経路計算と描画を行うメイン関数 ▼▼▼
             async function loadRouteFromCSV() {
-                try {
-                    await loadCSVData();
-                    await calc(); // サーバーでの計算実行
-
-                    // 計算後の結果ファイルを取得
-                    const response = await fetch('result2.txt');
-                    if (!response.ok)
-                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-                    const newResultText = await response.text();
-
-                    // 前回の結果と比較
-                    if (newResultText === previousResultText) {
-                        console.log('計算結果に変更がなかったため、メッセージは表示しません。');
-                        // 地図がクリアされている可能性があるので再描画だけ行う
-                        await drawRouteFromResult(newResultText, 'red', 10);
-                        return; // ここで処理を終了
-                    }
-
-                    // 結果が新しい場合のみ、ローディング画面を表示
-                    previousResultText = newResultText; // 結果を更新
-                    setLoadingState(true, '計算中...');
-
-                    // 描画処理
-                    await drawRouteFromResult(newResultText, 'red', 10);
-
-                    // 描画が終わったらメッセージを変更
-                    const messageElement = document.getElementById('loading-message');
-                    messageElement.textContent = '計算終了';
-
-                    // 3秒後にローディング画面を消す
-                    setTimeout(() => {
-                        setLoadingState(false);
-                    }, 1500);
-                } catch (error) {
-                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
-                    alert('エラーが発生しました: ' + error.message);
-                    setLoadingState(false); // エラー時はローディング画面を即座に消す
-                }
-            }
-
-            // ▼▼▼【修正】色違い版も同様のロジックに修正 ▼▼▼
-            async function loadRouteFromCSV2() {
                 try {
                     await loadCSVData();
                     await calc();
@@ -439,16 +434,9 @@
                         throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
                     const newResultText = await response.text();
 
-                    if (newResultText === previousResultText) {
-                        console.log('計算結果に変更がなかったため、メッセージは表示しません。');
-                        await drawRouteFromResult(newResultText, 'blue', 6);
-                        return;
-                    }
-
-                    previousResultText = newResultText;
                     setLoadingState(true, '計算中...');
 
-                    await drawRouteFromResult(newResultText, 'blue', 6);
+                    await drawRouteFromResult(newResultText, 'red', 10, 1);
 
                     const messageElement = document.getElementById('loading-message');
                     messageElement.textContent = '計算終了';
@@ -463,7 +451,32 @@
                 }
             }
 
-            // ... (以降のコードは変更なし) ...
+            async function loadRouteFromCSV2() {
+                try {
+                    await loadCSVData();
+                    await calc();
+
+                    const response = await fetch('result2.txt');
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                    const newResultText = await response.text();
+
+                    setLoadingState(true, '計算中...');
+
+                    await drawRouteFromResult(newResultText, 'blue', 6, 2);
+
+                    const messageElement = document.getElementById('loading-message');
+                    messageElement.textContent = '計算終了';
+
+                    setTimeout(() => {
+                        setLoadingState(false);
+                    }, 1500);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                    alert('エラーが発生しました: ' + error.message);
+                    setLoadingState(false);
+                }
+            }
 
             function loadGeoAssign(resultFile, color) {
                 var geojsonFolder = './oomiya_line/';
@@ -492,7 +505,7 @@
                                     var geojsonLayer = L.geoJSON(data, {
                                         style: { color: color, weight: 15, opacity: 0.2 },
                                     }).addTo(map);
-                                    geojsonLayers.push(geojsonLayer);
+                                    otherLayers.push(geojsonLayer);
                                 })
                                 .catch((error) =>
                                     console.error(`Error loading GeoJSON ${filename}:`, error)
@@ -516,7 +529,7 @@
                             var geojsonLayer = L.geoJSON(data, {
                                 style: { color: color, weight: weight, opacity: opacity },
                             }).addTo(map);
-                            geojsonLayers.push(geojsonLayer);
+                            otherLayers.push(geojsonLayer);
                         }
                     })
                     .catch((error) => console.error(error.message));
@@ -598,13 +611,15 @@
             }
 
             function clearGeoJSON() {
-                geojsonLayers.forEach(function (layer) {
+                [...route1Layers, ...route2Layers, ...otherLayers].forEach(layer => {
                     map.removeLayer(layer);
                 });
-                geojsonLayers = [];
-                const infoDiv = document.getElementById('route-info');
-                infoDiv.innerHTML =
-                    '<h4>経路情報</h4><p>経路を検索するとここに詳細が表示されます。</p>';
+                route1Layers = [];
+                route2Layers = [];
+                otherLayers = [];
+                route1Info = null;
+                route2Info = null;
+                updateRouteInfoDisplay();
             }
 
             var geojsonFeatures_near = [];
@@ -714,7 +729,7 @@
                     var geojsonLayer = L.geoJSON(geojsonData, {
                         style: { color: 'black', weight: 8, opacity: 0.5 },
                     }).addTo(map);
-                    geojsonLayers.push(geojsonLayer);
+                    otherLayers.push(geojsonLayer);
                 } catch (error) {
                     console.error('Error loading GeoJSON:', error);
                 }
