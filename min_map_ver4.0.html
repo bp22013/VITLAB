@@ -34,7 +34,23 @@
             <div id="loading-message"></div>
         </div>
 
-        <div id="map" style="width: 600px; height: 400px"></div>
+        <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 20px;">
+            <div id="map" style="width: 600px; height: 400px"></div>
+            <div
+                id="route-info"
+                style="
+                    width: 300px;
+                    padding: 15px;
+                    background-color: #f9f9f9;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    font-family: sans-serif;
+                "
+            >
+                <h4>経路情報</h4>
+                <p>経路を検索するとここに詳細が表示されます。</p>
+            </div>
+        </div>
         <button onclick="loadRouteFromCSV()">Load route from CSV</button>
         <button onclick="loadRouteFromCSV2()">Load route2 from CSV</button>
         <button onclick="clearGeoJSON()">Clear route</button>
@@ -294,11 +310,63 @@
                 }
             }
 
-            // ▼▼▼【追加】ルート描画ロジックを共通関数に切り出し ▼▼▼
+            // ▼▼▼【追加】ルート情報計算＆表示関数 ▼▼▼
+            function calculateAndDisplayRouteInfo(resultText) {
+                if (!routeData || routeData.length === 0) {
+                    console.error('経路情報データ(CSV)が読み込まれていません。');
+                    return;
+                }
+
+                const segments = resultText.split('\n').filter((line) => line.trim() !== '');
+                let totalDistance = 0;
+                let totalTime = 0;
+
+                // パフォーマンス向上のため、CSVデータをMapに変換
+                const routeDataMap = new Map();
+                routeData.forEach(row => {
+                    if (row.node1 !== undefined && row.node2 !== undefined) {
+                        routeDataMap.set(`${row.node1}-${row.node2}`, row);
+                    }
+                });
+
+                segments.forEach((segment) => {
+                    const fileName = segment.replace('.geojson', '');
+                    const nodes = fileName.split('-');
+                    if (nodes.length === 2) { // "node1-node2" の形式のみを処理
+                        const node1_str = nodes[0];
+                        const node2_str = nodes[1];
+                        
+                        // 両方向のキーを試す
+                        let routeInfo = routeDataMap.get(`${node1_str}-${node2_str}`);
+                        if (!routeInfo) {
+                            routeInfo = routeDataMap.get(`${node2_str}-${node1_str}`);
+                        }
+
+                        if (routeInfo) {
+                            totalDistance += routeInfo.distance || 0;
+                            totalTime += routeInfo.time_minutes || 0;
+                        } else {
+                            console.warn(`経路情報が見つかりません: ${segment}`);
+                        }
+                    }
+                });
+
+                const infoDiv = document.getElementById('route-info');
+                infoDiv.innerHTML = `
+                    <h4>経路情報</h4>
+                    <p><strong>総距離:</strong> ${totalDistance.toFixed(2)} m</p>
+                    <p><strong>所要時間:</strong> ${totalTime.toFixed(2)} 分</p>
+                `;
+            }
+
+            // ▼▼▼【修正】ルート描画ロジックを共通関数に切り出し、情報表示関数を呼び出す ▼▼▼
             async function drawRouteFromResult(resultText, color, weight) {
                 const lines = resultText.split('\n').filter((line) => line.trim() !== '');
                 const geojsonFiles = lines.map((line) => line.trim());
                 const geojsonFolder = './oomiya_line/';
+
+                // 経路情報を計算して表示
+                calculateAndDisplayRouteInfo(resultText);
 
                 // Promise.allですべてのGeoJSONファイルの読み込みと描画が終わるのを待つ
                 await Promise.all(
