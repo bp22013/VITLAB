@@ -27,6 +27,7 @@ services:
       - ./toilet.txt:/app/toilet.txt
       - ./crosswalk1.txt:/app/crosswalk1.txt
       - ./crosswalk-1.txt:/app/crosswalk-1.txt
+      - ./saving_route:/app/saving_route
       # Ubuntu 20.04でコンパイルされた実行ファイルをマウント
       - ./djk21:/app/djk21
       - ./up44:/app/up44

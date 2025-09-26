@@ -145,6 +145,90 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    /* ===== /list_saved_routes への GET ===== */
+    if (req.url === '/list_saved_routes' && req.method === 'GET') {
+        const saveDir = path.join(__dirname, 'saving_route');
+        if (!fs.existsSync(saveDir)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify([])); // ディレクトリがなければ空配列を返す
+            return;
+        }
+        fs.readdir(saveDir, (err, files) => {
+            if (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to list files' }));
+                return;
+            }
+            const csvFiles = files.filter(file => file.toLowerCase().endsWith('.csv'));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(csvFiles));
+        });
+        return;
+    }
+
+    /* ===== /get_saved_route への GET ===== */
+    if (req.url.startsWith('/get_saved_route') && req.method === 'GET') {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const fileName = url.searchParams.get('fileName');
+        if (!fileName) {
+            res.writeHead(400, { 'Content-Type': 'text/plain' });
+            res.end('File name is required');
+            return;
+        }
+
+        const filePath = path.join(__dirname, 'saving_route', fileName);
+        if (fs.existsSync(filePath)) {
+            fs.readFile(filePath, 'utf8', (err, data) => {
+                if (err) {
+                    res.writeHead(500, { 'Content-Type': 'text/plain' });
+                    res.end('Error reading file');
+                    return;
+                }
+                res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8' });
+                res.end(data);
+            });
+        } else {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('File not found');
+        }
+        return;
+    }
+
+    /* ===== /save_route への POST ===== */
+    if (req.url.startsWith('/save_route') && req.method === 'POST') {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+            try {
+                let { fileName, csvContent, overwrite } = JSON.parse(body);
+
+                if (!fileName.toLowerCase().endsWith('.csv')) {
+                    fileName += '.csv';
+                }
+
+                const saveDir = path.join(__dirname, 'saving_route');
+                const filePath = path.join(saveDir, fileName);
+
+                if (!fs.existsSync(saveDir)) {
+                    fs.mkdirSync(saveDir, { recursive: true });
+                }
+
+                if (fs.existsSync(filePath) && !overwrite) {
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'exists', finalFileName: fileName }));
+                } else {
+                    fs.writeFileSync(filePath, csvContent, 'utf8');
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'success', finalFileName: fileName }));
+                }
+            } catch (err) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: err.message }));
+            }
+        });
+        return;
+    }
+
     /* ===== 通常ファイルの配信 ===== */
     const filePath = path.join(__dirname, req.url === '/' ? 'min_map_ver4.1.html' : req.url);
 

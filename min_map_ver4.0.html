@@ -1,329 +1,771 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title>Minimum Route Map</title>
+        <title>経路探索マップ</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <link href="/dist/output.css" rel="stylesheet" />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        />
+        <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@turf/turf/turf.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
         <style>
-            #loading-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0, 0, 0, 0.7);
-                z-index: 10000;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                color: white;
-                font-size: 2em;
-                font-family: sans-serif;
+            .range-slider::-webkit-slider-thumb {
+                appearance: none;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+                border: 2px solid white;
+                transition: all 0.2s ease;
             }
-            .loading-hidden {
-                display: none !important;
+
+            .range-slider::-webkit-slider-thumb:hover {
+                transform: scale(1.1);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.6);
+            }
+
+            .gradient-bg {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+
+            .card-shadow {
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                    0 10px 10px -5px rgba(0, 0, 0, 0.04);
             }
         </style>
     </head>
-    <body>
-        <div id="loading-overlay" class="loading-hidden">
-            <div id="loading-message"></div>
-        </div>
-
-        <div style="display: flex; flex-direction: row; align-items: flex-start; gap: 20px;">
-            <div id="map" style="width: 600px; height: 400px"></div>
-            <div
-                id="route-info"
-                style="
-                    width: 300px;
-                    padding: 15px;
-                    background-color: #f9f9f9;
-                    border: 1px solid #ddd;
-                    border-radius: 8px;
-                    font-family: sans-serif;
-                "
-            >
-                <h4>経路情報</h4>
-                <p>経路を検索するとここに詳細が表示されます。</p>
+    <body class="gradient-bg min-h-screen">
+        <div
+            id="loading-overlay"
+            class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-999 flex items-center justify-center"
+        >
+            <div class="glass-effect rounded-2xl p-8 flex items-center space-x-4 text-white">
+                <div
+                    class="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin"
+                ></div>
+                <div id="loading-message" class="text-lg font-medium">読み込み中...</div>
             </div>
         </div>
-        <button onclick="loadRouteFromCSV()">Load route from CSV</button>
-        <button onclick="loadRouteFromCSV2()">Load route2 from CSV</button>
-        <button onclick="clearGeoJSON()">Clear route</button>
 
-        <button onclick="viewAREA('./RE_AREA.geojson')">対象範囲</button>
-        <button onclick="displayDataFromCSV('sidewalk', 'red')">歩道</button>
-        <button onclick="displayDataFromCSV('signal', 'blue')">信号</button>
-        <button onclick="displayDataFromCSV('road_width1', 'purple')">道路幅1</button>
-        <button onclick="displayDataFromCSV('road_width2', 'brown')">道路幅2</button>
-        <button onclick="displayDataFromCSV('road_width3', 'darkgreen')">道路幅3</button>
-        <button onclick="loadGeoAssign('illumination.txt','orange')">照明</button>
-        <button onclick="loadGeoAssign('nature.txt','green')">自然</button>
-        <button onclick="loadGeoAssign('park.txt','red')">公園</button>
-        <button onclick="loadGeoAssign('garbage.txt','orange')">ごみ集積場</button>
-        <button onclick="loadGeoAssign('toilet.txt','red')">公衆トイレ</button>
-        <button onclick="loadGeoAssign('crosswalk1.txt','red')">横断歩道</button>
-        <button onclick="loadGeoAssign('crosswalk-1.txt','red')">横断可能</button>
+        <div class="min-h-screen p-4">
+            <div class="max-w-8xl mx-auto space-y-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                            <i class="fas fa-eye text-yellow-300"></i>
+                            表示データ
+                        </h3>
+                        <div class="grid grid-cols-6 gap-2">
+                            <button
+                                onclick="viewAREA('./RE_AREA.geojson')"
+                                class="bg-gray-600 hover:bg-gray-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                対象範囲
+                            </button>
+                            <button
+                                onclick="displayDataFromCSV('sidewalk', 'red')"
+                                class="bg-red-600 hover:bg-red-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                歩道
+                            </button>
+                            <button
+                                onclick="displayDataFromCSV('signal', 'blue')"
+                                class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                信号
+                            </button>
+                            <button
+                                onclick="displayDataFromCSV('road_width1', 'purple')"
+                                class="bg-purple-600 hover:bg-purple-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                道路幅1
+                            </button>
+                            <button
+                                onclick="displayDataFromCSV('road_width2', 'brown')"
+                                class="bg-yellow-700 hover:bg-yellow-600 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                道路幅2
+                            </button>
+                            <button
+                                onclick="displayDataFromCSV('road_width3', 'darkgreen')"
+                                class="bg-green-700 hover:bg-green-600 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                道路幅3
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('illumination.txt','orange')"
+                                class="bg-orange-600 hover:bg-orange-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                照明
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('nature.txt','green')"
+                                class="bg-green-600 hover:bg-green-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                自然
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('park.txt','red')"
+                                class="bg-red-700 hover:bg-red-600 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                公園
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('garbage.txt','orange')"
+                                class="bg-orange-500 hover:bg-orange-400 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                ごみ
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('toilet.txt','red')"
+                                class="bg-pink-600 hover:bg-pink-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                トイレ
+                            </button>
+                            <button
+                                onclick="loadGeoAssign('crosswalk1.txt','red')"
+                                class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                            >
+                                横断歩道
+                            </button>
+                        </div>
+                    </div>
+                    <div class="xl:col-span-1 flex flex-col">
+                        <div class="glass-effect rounded-xl p-4 flex-grow">
+                            <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                                <i class="fas fa-info-circle text-yellow-300"></i>
+                                経路情報
+                            </h3>
+                            <div id="route-info" class="flex gap-3 text-white/90 text-sm flex-wrap">
+                                経路を検索すると詳細情報が表示されます
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-        <div
-            id="coordinates"
-            style="margin: 10px 0; padding: 10px; background-color: #f0f0f0; border-radius: 5px"
-        >
-            <strong>クリックした座標:</strong>
-            <span id="coord-display">マップをクリックしてください</span>
-        </div>
+                <div class="grid grid-cols-1 lg:grid-cols-9 gap-6">
+                    <div class="xl:col-span-2 flex flex-col gap-6">
+                        <div class="glass-effect rounded-xl p-6">
+                            <h3
+                                class="text-white font-semibold text-lg mb-4 flex items-center gap-2"
+                            >
+                                <i class="fas fa-map-marker-alt text-yellow-300"></i>
+                                地点設定
+                            </h3>
+                            <div class="space-x-2 flex">
+                                <div>
+                                    <label class="block text-white/90 text-sm font-medium mb-2">
+                                        <i class="fas fa-play text-green-400 mr-1"></i>
+                                        始点 (1-246)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="param1"
+                                        value="1"
+                                        class="w-full pl-2 rounded-lg bg-white/20 text-white border border-white/30 placeholder-white/50 focus:border-yellow-300 focus:outline-none transition-all duration-200"
+                                        placeholder="始点ノード番号"
+                                    />
+                                </div>
+                                <div>
+                                    <label class="block text-white/90 text-sm font-medium mb-2">
+                                        <i class="fas fa-stop text-red-400 mr-1"></i> 終点 (1-246)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        id="param2"
+                                        value="246"
+                                        class="w-full pl-2 rounded-lg bg-white/20 text-white border border-white/30 placeholder-white/50 focus:border-yellow-300 focus:outline-none transition-all duration-200"
+                                        placeholder="終点ノード番号"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-        <div>
-            <h5>始点および終点を設定(地図をクリックして指定も可能)</h5>
-            <label for="param1(1-181)">始点 :</label>
-            <input type="text" id="param1" value="1" />
-            <label for="param2(1-181)">終点 :</label>
-            <input type="text" id="param2" value="246" />
-        </div>
-        <div>
-            <h5>各条件の重みを設定(半角数字)</h5>
-            <label for="weight0" style="width: 150px; display: inline-block">距離:(+)</label>
-            <input
-                type="range"
-                id="weight0"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight0')"
-            />
-            <label for="textweight0"></label>
-            <input type="text" id="textweight0" value="0" oninput="syncValues(this, 'weight0')" />
-            <label for="weight1" style="width: 150px; display: inline-block">勾配(+):</label>
-            <input
-                type="range"
-                id="weight1"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight1')"
-            />
-            <label for="textweight1"></label>
-            <input
-                type="text"
-                id="textweight1"
-                value="0"
-                oninput="syncValues(this, 'textweight1')"
-            />
-            <br />
-            <label for="weight4" style="width: 150px; display: inline-block">歩道(-):</label>
-            <input
-                type="range"
-                id="weight4"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight4')"
-            />
-            <label for="textweight4"></label>
-            <input type="text" id="textweight4" value="0" oninput="syncValues(this, 'weight4')" />
-            <label for="weight5" style="width: 150px; display: inline-block">信号(+):</label>
-            <input
-                type="range"
-                id="weight5"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight5')"
-            />
-            <label for="textweight5"></label>
-            <input type="text" id="textweight5" value="0" oninput="syncValues(this, 'weight5')" />
-            <br />
-            <label for="weight6" style="width: 150px; display: inline-block">道路幅(+):</label>
-            <input
-                type="range"
-                id="weight6"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight6')"
-            />
-            <label for="textweight6"></label>
-            <input type="text" id="textweight6" value="0" oninput="syncValues(this, 'weight6')" />
-            <label for="weight7" style="width: 150px; display: inline-block">照明(-):</label>
-            <input
-                type="range"
-                id="weight7"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight7')"
-            />
-            <label for="textweight7"></label>
-            <input type="text" id="textweight7" value="0" oninput="syncValues(this, 'weight7')" />
-            <br />
-            <label for="weight8" style="width: 150px; display: inline-block">自然(-):</label>
-            <input
-                type="range"
-                id="weight8"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight8')"
-            />
-            <label for="textweight8"></label>
-            <input type="text" id="textweight8" value="0" oninput="syncValues(this, 'weight8')" />
-            <label for="weight9" style="width: 150px; display: inline-block">公園(-):</label>
-            <input
-                type="range"
-                id="weight9"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight9')"
-            />
-            <label for="textweight9"></label>
-            <input type="text" id="textweight9" value="0" oninput="syncValues(this, 'weight9')" />
-            <br />
-            <label for="weight10" style="width: 150px; display: inline-block">ごみ集積場(+):</label>
-            <input
-                type="range"
-                id="weight10"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight10')"
-            />
-            <label for="textweight10"></label>
-            <input type="text" id="textweight10" value="0" oninput="syncValues(this, 'weight10')" />
-            <label for="weight11" style="width: 150px; display: inline-block">公衆トイレ(-):</label>
-            <input
-                type="range"
-                id="weight11"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight11')"
-            />
-            <label for="textweight11"></label>
-            <input type="text" id="textweight11" value="0" oninput="syncValues(this, 'weight11')" />
-            <br />
-            <label for="weight12" style="width: 150px; display: inline-block">横断歩道(-):</label>
-            <input
-                type="range"
-                id="weight12"
-                value="0"
-                min="-100.0"
-                max="100.0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight12')"
-            />
-            <label for="textweight12"></label>
-            <input type="text" id="textweight12" value="0" oninput="syncValues(this, 'weight12')" />
-            <h5>勾配の最大許容値を設定(半角数字,単位 m/m)</h5>
-            <label for="weight2" style="width: 150px; display: inline-block">上りの最大勾配:</label>
-            <input
-                type="range"
-                id="weight2"
-                value="100"
-                min="0"
-                max="100"
-                step="0.1"
-                oninput="syncValues(this, 'textweight2')"
-            />
-            <label for="textweight2"></label>
-            <input type="text" id="textweight2" value="100" oninput="syncValues(this, 'weight2')" />
-            <label for="weight3" style="width: 150px; display: inline-block">下りの最大勾配:</label>
-            <input
-                type="range"
-                id="weight3"
-                value="-100"
-                min="-100"
-                max="0"
-                step="0.1"
-                oninput="syncValues(this, 'textweight3')"
-            />
-            <label for="textweight3"></label>
-            <input
-                type="text"
-                id="textweight3"
-                value="-100"
-                oninput="syncValues(this, 'weight3')"
-            />
+                        <div class="glass-effect rounded-xl p-4">
+                            <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                                <i class="fas fa-save text-yellow-300"></i>
+                                ルート保存・参照
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button
+                                        onclick="saveRoute(1)"
+                                        class="bg-green-500 hover:bg-green-600 text-white text-xs py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-1"
+                                    >
+                                        <i class="fas fa-download"></i>経路1
+                                    </button>
+                                    <button
+                                        onclick="saveRoute(2)"
+                                        class="bg-green-500 hover:bg-green-600 text-white text-xs py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-1"
+                                    >
+                                        <i class="fas fa-download"></i>経路2
+                                    </button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <select
+                                        id="saved-routes-dropdown"
+                                        class="flex-1 text-xs p-2 rounded-lg bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                    >
+                                        <option>読み込み中...</option>
+                                    </select>
+                                    <button
+                                        onclick="loadSelectedRoute()"
+                                        class="bg-blue-500 hover:bg-blue-600 text-white text-xs py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105"
+                                    >
+                                        <i class="fas fa-upload"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-            <button onclick="">Set</button>
+                        <div class="glass-effect rounded-xl p-3">
+                            <h3
+                                class="text-white font-semibold text-lg mb-1 flex items-center gap-2"
+                            >
+                                <i class="fas fa-mountain text-yellow-300"></i>
+                                勾配制限
+                            </h3>
+                            <div class="space-y-1">
+                                <div>
+                                    <label class="block text-white/90 text-sm font-medium"
+                                        >上りの最大勾配 (m/m)</label
+                                    >
+                                    <div class="flex items-center gap-3">
+                                        <input
+                                            type="range"
+                                            id="weight2"
+                                            value="100"
+                                            min="0"
+                                            max="100"
+                                            step="0.1"
+                                            class="range-slider flex-1 h-2 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                            oninput="syncValues(this, 'textweight2')"
+                                        />
+                                        <input
+                                            type="text"
+                                            id="textweight2"
+                                            value="100"
+                                            class="w-16 px-2 py-1 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                            oninput="syncValues(this, 'weight2')"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-white/90 text-sm font-medium"
+                                        >下りの最大勾配 (m/m)</label
+                                    >
+                                    <div class="flex items-center gap-3">
+                                        <input
+                                            type="range"
+                                            id="weight3"
+                                            value="-100"
+                                            min="-100"
+                                            max="0"
+                                            step="0.1"
+                                            class="range-slider flex-1 h-2 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                            oninput="syncValues(this, 'textweight3')"
+                                        />
+                                        <input
+                                            type="text"
+                                            id="textweight3"
+                                            value="-100"
+                                            class="w-16 px-2 py-1 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                            oninput="syncValues(this, 'weight3')"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="xl:col-span-4">
+                        <div
+                            class="bg-white rounded-2xl overflow-hidden card-shadow h-[375px] mb-3"
+                        >
+                            <div id="map" style="height: 400px"></div>
+                        </div>
+                        <div class="glass-effect rounded-xl p-4 flex flex-col">
+                            <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                                <i class="fas fa-play-circle text-yellow-300"></i>
+                                計算実行
+                            </h3>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button
+                                    onclick="loadRouteFromCSV()"
+                                    class="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 rounded-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-route"></i>経路1を計算
+                                </button>
+                                <button
+                                    onclick="loadRouteFromCSV2()"
+                                    class="w-full bg-blue-500 hover:bg-blue-600 text-white text-sm py-2 rounded-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-route"></i>経路2を計算
+                                </button>
+                                <button
+                                    onclick="clearGeoJSON()"
+                                    class="w-full bg-gray-500 hover:bg-gray-600 text-white text-sm py-2 rounded-lg transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2"
+                                >
+                                    <i class="fas fa-trash"></i>クリア
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-effect rounded-xl p-4 col-span-3">
+                        <h3 class="text-white font-semibold text-xl mb-4 flex items-center gap-2">
+                            <i class="fas fa-sliders-h text-yellow-300"></i>
+                            重み設定
+                        </h3>
+                        <div
+                            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-2"
+                        >
+                            <!-- 距離 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >距離 (+)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight0"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight0')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight0"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight0')"
+                                />
+                            </div>
+
+                            <!-- 勾配 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >勾配 (+)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight1"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight1')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight1"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight1')"
+                                />
+                            </div>
+
+                            <!-- 歩道 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >歩道 (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight4"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight4')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight4"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight4')"
+                                />
+                            </div>
+
+                            <!-- 信号 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >信号 (+)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight5"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight5')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight5"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight5')"
+                                />
+                            </div>
+
+                            <!-- 道路幅 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >道路幅 (+)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight6"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight6')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight6"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight6')"
+                                />
+                            </div>
+
+                            <!-- 照明 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >照明 (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight7"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight7')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight7"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight7')"
+                                />
+                            </div>
+
+                            <!-- 自然 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >自然 (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight8"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight8')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight8"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight8')"
+                                />
+                            </div>
+
+                            <!-- 公園 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >公園 (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight9"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight9')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight9"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight9')"
+                                />
+                            </div>
+
+                            <!-- ごみ -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >ごみ集積場 (+)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight10"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight10')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight10"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight10')"
+                                />
+                            </div>
+
+                            <!-- トイレ -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >公衆トイレ (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight11"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight11')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight11"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight11')"
+                                />
+                            </div>
+
+                            <!-- 横断歩道 -->
+                            <div
+                                class="bg-white/10 p-3 rounded-lg border border-white/20 flex flex-col space-y-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="text-white/90 text-sm font-medium"
+                                        >横断歩道 (-)</label
+                                    >
+                                    <input
+                                        type="text"
+                                        id="textweight12"
+                                        value="0"
+                                        class="w-14 px-1 py-0.5 text-xs text-center rounded bg-white/20 text-white border border-white/30 focus:border-yellow-300 focus:outline-none"
+                                        oninput="syncValues(this, 'weight12')"
+                                    />
+                                </div>
+                                <input
+                                    type="range"
+                                    id="weight12"
+                                    value="0"
+                                    min="-100.0"
+                                    max="100.0"
+                                    step="0.1"
+                                    class="range-slider w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer"
+                                    oninput="syncValues(this, 'textweight12')"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
-            var map = L.map('map', { center: [35.95017, 139.64735], zoom: 15 });
-            var tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            let map = L.map('map', { center: [35.95017, 139.64735], zoom: 15 });
+            let tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution:
                     '© <a href="http://osm.org/copyright">OpenStreetMap</a> contributors, ' +
                     '<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>',
             });
             tileLayer.addTo(map);
 
-            let route1Layers = [];
-            let route2Layers = [];
+            // State management
+            let route1 = { info: null, segments: [], layers: [] };
+            let route2 = { info: null, segments: [], layers: [] };
+            let savedRoute = { info: null, layers: [] };
             let otherLayers = [];
-            var routeData = [];
-            let route1Info = null;
-            let route2Info = null;
+            let routeData = [];
 
-            function updateRouteInfoDisplay() {
+            const updateRouteInfoDisplay = () => {
                 const infoDiv = document.getElementById('route-info');
-                let content = '<h4>経路情報</h4>';
+                let content = '';
+                let hasInfo = false;
 
-                if (!route1Info && !route2Info) {
-                    content += '<p>経路を検索するとここに詳細が表示されます。</p>';
-                }
-
-                if (route1Info) {
+                if (route1.info) {
+                    hasInfo = true;
                     content += `
-                        <div style="border: 2px solid red; padding: 8px; margin-bottom: 10px; border-radius: 5px;">
-                            <h5>経路1 (赤)</h5>
-                            <p style="margin: 2px 0;"><strong>総距離:</strong> ${route1Info.totalDistance.toFixed(2)} m</p>
-                            <p style="margin: 2px 0;"><strong>所要時間:</strong> ${route1Info.totalTime.toFixed(2)} 分</p>
+                        <div class="bg-red-500/20 border border-red-300/30 rounded-lg p-2">
+                            <h4 class="text-red-200 font-semibold mb-2 flex items-center gap-2">
+                                <i class="fas fa-route"></i>経路1 (赤)
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">総距離</div>
+                                    <div class="text-white font-semibold">${route1.info.totalDistance.toFixed(
+                                        0
+                                    )} m</div>
+                                </div>
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">所要時間</div>
+                                    <div class="text-white font-semibold">${route1.info.totalTime.toFixed(
+                                        1
+                                    )} 分</div>
+                                </div>
+                            </div>
                         </div>
                     `;
                 }
 
-                if (route2Info) {
+                if (route2.info) {
+                    hasInfo = true;
                     content += `
-                        <div style="border: 2px solid blue; padding: 8px; border-radius: 5px;">
-                            <h5>経路2 (青)</h5>
-                            <p style="margin: 2px 0;"><strong>総距離:</strong> ${route2Info.totalDistance.toFixed(2)} m</p>
-                            <p style="margin: 2px 0;"><strong>所要時間:</strong> ${route2Info.totalTime.toFixed(2)} 分</p>
+                        <div class="bg-blue-500/20 border border-blue-300/30 rounded-lg p-2">
+                            <h4 class="text-blue-200 font-semibold mb-2 flex items-center gap-2">
+                                <i class="fas fa-route"></i>経路2 (青)
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">総距離</div>
+                                    <div class="text-white font-semibold">${route2.info.totalDistance.toFixed(
+                                        0
+                                    )} m</div>
+                                </div>
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">所要時間</div>
+                                    <div class="text-white font-semibold">${route2.info.totalTime.toFixed(
+                                        1
+                                    )} 分</div>
+                                </div>
+                            </div>
                         </div>
                     `;
+                }
+
+                if (savedRoute.info) {
+                    hasInfo = true;
+                    content += `
+                        <div class="bg-green-500/20 border border-green-300/30 rounded-lg p-2">
+                            <h4 class="text-green-200 font-semibold mb-2 flex items-center gap-2">
+                                <i class="fas fa-route"></i>呼び出し経路 (緑)
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">総距離</div>
+                                    <div class="text-white font-semibold">${savedRoute.info.totalDistance.toFixed(
+                                        0
+                                    )} m</div>
+                                </div>
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">所要時間</div>
+                                    <div class="text-white font-semibold">${savedRoute.info.totalTime.toFixed(
+                                        1
+                                    )} 分</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (!hasInfo) {
+                    content =
+                        '<div class="text-white/70 text-center italic text-sm">経路を検索すると詳細情報が表示されます</div>';
                 }
                 infoDiv.innerHTML = content;
-            }
+            };
 
-            function setLoadingState(isLoading, message = '') {
+            const setLoadingState = (isLoading, message = '') => {
                 const overlay = document.getElementById('loading-overlay');
                 const messageElement = document.getElementById('loading-message');
-                const controls = document.querySelectorAll('button, input');
+                const controls = document.querySelectorAll('button, input, select');
 
                 if (isLoading) {
                     messageElement.textContent = message;
-                    overlay.classList.remove('loading-hidden');
+                    overlay.classList.remove('hidden');
                     controls.forEach((control) => (control.disabled = true));
                 } else {
-                    overlay.classList.add('loading-hidden');
+                    overlay.classList.add('hidden');
                     controls.forEach((control) => (control.disabled = false));
                 }
-            }
+            };
 
-            async function loadCSVData() {
+            const loadCSVData = async () => {
                 if (routeData.length > 0) return routeData;
                 try {
                     const response = await fetch('./oomiya_route_inf_4.csv');
@@ -334,26 +776,24 @@
                         skipEmptyLines: true,
                     });
                     routeData = parsed.data;
-                    console.log('CSVデータをロードしました:', routeData.length, '行');
                     return routeData;
                 } catch (error) {
                     console.error('CSVデータのロードに失敗:', error);
                     return [];
                 }
-            }
+            };
 
-            function calculateRouteInfo(resultText) {
-                if (!routeData || routeData.length === 0) {
+            const calculateRouteInfo = (segments, sourceData) => {
+                if (!sourceData || sourceData.length === 0) {
                     console.error('経路情報データ(CSV)が読み込まれていません。');
                     return null;
                 }
 
-                const segments = resultText.split('\n').filter((line) => line.trim() !== '');
                 let totalDistance = 0;
                 let totalTime = 0;
 
                 const routeDataMap = new Map();
-                routeData.forEach(row => {
+                sourceData.forEach((row) => {
                     if (row.node1 !== undefined && row.node2 !== undefined) {
                         routeDataMap.set(`${row.node1}-${row.node2}`, row);
                     }
@@ -365,12 +805,9 @@
                     if (nodes.length === 2) {
                         const node1_str = nodes[0];
                         const node2_str = nodes[1];
-                        
-                        let routeInfo = routeDataMap.get(`${node1_str}-${node2_str}`);
-                        if (!routeInfo) {
-                            routeInfo = routeDataMap.get(`${node2_str}-${node1_str}`);
-                        }
-
+                        let routeInfo =
+                            routeDataMap.get(`${node1_str}-${node2_str}`) ||
+                            routeDataMap.get(`${node2_str}-${node1_str}`);
                         if (routeInfo) {
                             totalDistance += routeInfo.distance || 0;
                             totalTime += routeInfo.time_minutes || 0;
@@ -380,27 +817,19 @@
                     }
                 });
                 return { totalDistance, totalTime };
-            }
+            };
 
-            async function drawRouteFromResult(resultText, color, weight, routeId) {
-                if (routeId === 1) {
-                    route1Layers.forEach(layer => map.removeLayer(layer));
-                    route1Layers = [];
-                } else if (routeId === 2) {
-                    route2Layers.forEach(layer => map.removeLayer(layer));
-                    route2Layers = [];
-                }
+            const drawRouteFromResult = async (resultText, color, weight, routeId) => {
+                const targetRoute = routeId === 1 ? route1 : route2;
+                targetRoute.layers.forEach((layer) => map.removeLayer(layer));
+                targetRoute.layers = [];
 
-                const lines = resultText.split('\n').filter((line) => line.trim() !== '');
-                const geojsonFiles = lines.map((line) => line.trim());
+                const segments = resultText.split('\n').filter((line) => line.trim() !== '');
+                targetRoute.segments = segments;
+                const geojsonFiles = segments.map((line) => line.trim());
                 const geojsonFolder = './oomiya_line/';
 
-                const info = calculateRouteInfo(resultText);
-                if (routeId === 1) {
-                    route1Info = info;
-                } else if (routeId === 2) {
-                    route2Info = info;
-                }
+                targetRoute.info = calculateRouteInfo(segments, routeData);
                 updateRouteInfoDisplay();
 
                 await Promise.all(
@@ -414,91 +843,167 @@
                                 const geojsonLayer = L.geoJSON(data, {
                                     style: { color: color, weight: weight, opacity: 1.0 },
                                 }).addTo(map);
-                                if (routeId === 1) {
-                                    route1Layers.push(geojsonLayer);
-                                } else {
-                                    route2Layers.push(geojsonLayer);
+                                targetRoute.layers.push(geojsonLayer);
+                            })
+                    )
+                );
+            };
+
+            const loadRouteFromCSV = async () => {
+                try {
+                    setLoadingState(true, '経路1を計算中...');
+                    await loadCSVData();
+                    await calc();
+                    const response = await fetch('result2.txt');
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                    const newResultText = await response.text();
+                    await drawRouteFromResult(newResultText, '#ff4757', 10, 1);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                    alert('エラーが発生しました: ' + error.message);
+                } finally {
+                    setLoadingState(false);
+                }
+            };
+
+            const loadRouteFromCSV2 = async () => {
+                try {
+                    setLoadingState(true, '経路2を計算中...');
+                    await loadCSVData();
+                    await calc();
+                    const response = await fetch('result2.txt');
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                    const newResultText = await response.text();
+                    await drawRouteFromResult(newResultText, '#3742fa', 6, 2);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                    alert('エラーが発生しました: ' + error.message);
+                } finally {
+                    setLoadingState(false);
+                }
+            };
+
+            const saveRoute = async (routeId) => {
+                const routeToSave = routeId === 1 ? route1 : route2;
+                if (!routeToSave.segments || routeToSave.segments.length === 0) {
+                    alert('保存する経路がありません。');
+                    return;
+                }
+
+                const fileName = prompt('ファイル名を入力してください (例: route1.csv):');
+                if (!fileName) {
+                    return;
+                }
+
+                const masterDataMap = new Map();
+                const header = Object.keys(routeData[0]).join(',');
+                routeData.forEach((row) => {
+                    masterDataMap.set(`${row.node1}-${row.node2}`, Object.values(row).join(','));
+                });
+
+                let csvContent = header + '\n';
+                routeToSave.segments.forEach((segmentName) => {
+                    const cleanName = segmentName.replace('.geojson', '');
+                    const nodes = cleanName.split('-');
+                    const key1 = `${nodes[0]}-${nodes[1]}`;
+                    const key2 = `${nodes[1]}-${nodes[0]}`;
+                    const row = masterDataMap.get(key1) || masterDataMap.get(key2);
+                    if (row) {
+                        csvContent += row + '\n';
+                    }
+                });
+
+                const saveData = async (overwrite = false) => {
+                    try {
+                        const response = await fetch('/save_route', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fileName, csvContent, overwrite }),
+                        });
+
+                        const result = await response.json();
+
+                        if (result.status === 'exists') {
+                            if (
+                                confirm(
+                                    `ファイル "${result.finalFileName}" は既に存在します。上書きしますか？`
+                                )
+                            ) {
+                                await saveData(true);
+                            } else {
+                                alert('保存をキャンセルしました。');
+                            }
+                        } else if (result.status === 'success') {
+                            alert(
+                                `経路が "${result.finalFileName}" としてサーバーに保存されました。`
+                            );
+                            loadSavedRoutesList();
+                        } else {
+                            alert(`保存中にエラーが発生しました: ${result.message}`);
+                        }
+                    } catch (error) {
+                        console.error('保存エラー:', error);
+                        alert('サーバーとの通信に失敗しました。');
+                    }
+                };
+
+                await saveData();
+            };
+
+            const drawSavedRoute = async (csvContent) => {
+                savedRoute.layers.forEach((layer) => map.removeLayer(layer));
+                savedRoute.layers = [];
+
+                const parsed = Papa.parse(csvContent, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                });
+                const savedSegmentsData = parsed.data;
+                if (!savedSegmentsData || savedSegmentsData.length === 0) return;
+
+                const segments = savedSegmentsData.map(
+                    (row) => `${row.node1}-${row.node2}.geojson`
+                );
+                savedRoute.info = calculateRouteInfo(segments, savedSegmentsData);
+                updateRouteInfoDisplay();
+
+                const geojsonFolder = './oomiya_line/';
+                await Promise.all(
+                    segments.map((segmentFilename) =>
+                        fetch(geojsonFolder + segmentFilename)
+                            .then((res) => {
+                                if (!res.ok) console.warn(`${segmentFilename}の読み込みに失敗`);
+                                return res.json().catch(() => null);
+                            })
+                            .then((data) => {
+                                if (data) {
+                                    const geojsonLayer = L.geoJSON(data, {
+                                        style: { color: '#2ed573', weight: 8, opacity: 0.8 },
+                                    }).addTo(map);
+                                    savedRoute.layers.push(geojsonLayer);
                                 }
                             })
                     )
                 );
-            }
+            };
 
-            async function loadRouteFromCSV() {
-                try {
-                    await loadCSVData();
-                    await calc();
-
-                    const response = await fetch('result2.txt');
-                    if (!response.ok)
-                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-                    const newResultText = await response.text();
-
-                    setLoadingState(true, '計算中...');
-
-                    await drawRouteFromResult(newResultText, 'red', 10, 1);
-
-                    const messageElement = document.getElementById('loading-message');
-                    messageElement.textContent = '計算終了';
-
-                    setTimeout(() => {
-                        setLoadingState(false);
-                    }, 1500);
-                } catch (error) {
-                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
-                    alert('エラーが発生しました: ' + error.message);
-                    setLoadingState(false);
-                }
-            }
-
-            async function loadRouteFromCSV2() {
-                try {
-                    await loadCSVData();
-                    await calc();
-
-                    const response = await fetch('result2.txt');
-                    if (!response.ok)
-                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-                    const newResultText = await response.text();
-
-                    setLoadingState(true, '計算中...');
-
-                    await drawRouteFromResult(newResultText, 'blue', 6, 2);
-
-                    const messageElement = document.getElementById('loading-message');
-                    messageElement.textContent = '計算終了';
-
-                    setTimeout(() => {
-                        setLoadingState(false);
-                    }, 1500);
-                } catch (error) {
-                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
-                    alert('エラーが発生しました: ' + error.message);
-                    setLoadingState(false);
-                }
-            }
-
-            function loadGeoAssign(resultFile, color) {
-                var geojsonFolder = './oomiya_line/';
+            const loadGeoAssign = (resultFile, color) => {
+                let geojsonFolder = './oomiya_line/';
                 fetch(resultFile)
                     .then((response) => {
-                        if (!response.ok)
-                            throw new Error(
-                                `Failed to fetch ${resultFile}: ${response.statusText}`
-                            );
+                        if (!response.ok) throw new Error(`Failed to fetch ${resultFile}`);
                         return response.text();
                     })
                     .then((text) => {
                         var lines = text.split('\n').filter((line) => line.trim() !== '');
-                        var geojsonFiles = lines.map((line) => line.trim());
-                        console.log(`Loading ${geojsonFiles.length} files from ${resultFile}`);
-                        geojsonFiles.forEach(function (filename) {
+                        lines.forEach(function (filename) {
                             fetch(geojsonFolder + filename)
                                 .then((response) => {
                                     if (!response.ok)
-                                        throw new Error(
-                                            `Failed to fetch ${filename}: ${response.statusText}`
-                                        );
+                                        throw new Error(`Failed to fetch ${filename}`);
                                     return response.json();
                                 })
                                 .then((data) => {
@@ -513,14 +1018,14 @@
                         });
                     })
                     .catch((error) => console.error(`Error loading ${resultFile}:`, error));
-            }
+            };
 
-            function drawGeoJSON(url, color, weight, opacity) {
+            const drawGeoJSON = (url, color, weight, opacity) => {
                 fetch(url)
                     .then((response) => {
                         if (!response.ok) {
                             if (response.status === 404) return null;
-                            throw new Error(`Error loading GeoJSON: ${response.statusText}`);
+                            throw new Error(`Error loading GeoJSON`);
                         }
                         return response.json();
                     })
@@ -533,11 +1038,11 @@
                         }
                     })
                     .catch((error) => console.error(error.message));
-            }
+            };
 
-            async function displayDataFromCSV(dataType, color) {
+            const displayDataFromCSV = async (dataType, color) => {
                 await loadCSVData();
-                var geojsonFolder = './oomiya_line/';
+                let geojsonFolder = './oomiya_line/';
                 routeData.forEach(function (row) {
                     let conditionMet = false;
                     switch (dataType) {
@@ -563,9 +1068,9 @@
                         drawGeoJSON(url, color, 15, 0.3);
                     }
                 });
-            }
+            };
 
-            function calc() {
+            const calc = () => {
                 var param1 = document.getElementById('param1').value;
                 var param2 = document.getElementById('param2').value;
                 var weight0 = document.getElementById('weight0').value;
@@ -582,6 +1087,7 @@
                 var weight11 = document.getElementById('weight11').value;
                 var weight12 = document.getElementById('weight12').value;
                 const baseUrl = window.location.origin;
+
                 return fetch(`${baseUrl}/calc`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -608,27 +1114,47 @@
                     .then((output) => {
                         console.log('計算完了:', output);
                     });
-            }
+            };
 
-            function clearGeoJSON() {
-                [...route1Layers, ...route2Layers, ...otherLayers].forEach(layer => {
-                    map.removeLayer(layer);
-                });
-                route1Layers = [];
-                route2Layers = [];
+            const clearGeoJSON = () => {
+                [...route1.layers, ...route2.layers, ...savedRoute.layers, ...otherLayers].forEach(
+                    (layer) => {
+                        map.removeLayer(layer);
+                    }
+                );
+                route1 = { info: null, segments: [], layers: [] };
+                route2 = { info: null, segments: [], layers: [] };
+                savedRoute = { info: null, layers: [] };
                 otherLayers = [];
-                route1Info = null;
-                route2Info = null;
                 updateRouteInfoDisplay();
-            }
+            };
 
-            var geojsonFeatures_near = [];
-            var geojsonFileNames_near = [];
+            let geojsonFeatures_near = [];
+            let geojsonFileNames_near = [];
 
-            function displayCoordinates(lat, lng) {
-                var coordDisplay = document.getElementById('coord-display');
-                coordDisplay.innerHTML = `緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`;
+            // ノードGeoJSONをロード（必要数は適宜調整）
+            const pointPromises = [];
+            for (let i = 1; i <= 300; i++) {
+                const fileName = `${i}.geojson`;
+                const filePath = './oomiya_point/' + fileName;
+                pointPromises.push(
+                    fetch(filePath)
+                        .then((response) => {
+                            if (response.ok) {
+                                return response.json().then((geojsonData) => {
+                                    geojsonFeatures_near.push(geojsonData);
+                                    geojsonFileNames_near.push(fileName);
+                                });
+                            }
+                        })
+                        .catch(() => {
+                            /* 存在しないファイルは無視 */
+                        })
+                );
             }
+            Promise.all(pointPromises).then(() => {
+                console.log(`${geojsonFeatures_near.length} points loaded.`);
+            });
 
             const blueIcon = new L.Icon({
                 iconUrl:
@@ -643,38 +1169,18 @@
 
             let startMarker = null;
 
-            // Load all point geojson files
-            const pointPromises = [];
-            for (let i = 1; i <= 300; i++) {
-                // Adjust the upper limit if needed
-                const fileName = `${i}.geojson`;
-                const filePath = './oomiya_point/' + fileName;
-                pointPromises.push(
-                    fetch(filePath)
-                        .then((response) => {
-                            if (response.ok) {
-                                return response.json().then((geojsonData) => {
-                                    geojsonFeatures_near.push(geojsonData);
-                                    geojsonFileNames_near.push(fileName);
-                                });
-                            }
-                        })
-                        .catch((error) => {
-                            // Ignore errors for non-existent files
-                        })
-                );
-            }
-
-            Promise.all(pointPromises).then(() => {
-                console.log(`${geojsonFeatures_near.length} points loaded.`);
-            });
+            const displayCoordinates = (lat, lng) => {
+                const coordDisplay = document.getElementById('coord-display');
+                if (coordDisplay) {
+                    coordDisplay.innerHTML = `緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`;
+                }
+            };
 
             map.on('click', function (e) {
                 displayCoordinates(e.latlng.lat, e.latlng.lng);
+
                 if (geojsonFeatures_near.length === 0) {
-                    alert(
-                        'GeoJSONデータがまだ読み込まれていません。しばらく待ってからもう一度お試しください。'
-                    );
+                    alert('GeoJSONデータがまだ読み込まれていません。');
                     return;
                 }
 
@@ -715,12 +1221,12 @@
                 }
             });
 
-            function syncValues(source, targetId) {
+            const syncValues = (source, targetId) => {
                 const target = document.getElementById(targetId);
                 target.value = source.value;
-            }
+            };
 
-            async function viewAREA(filePath) {
+            const viewAREA = async (filePath) => {
                 try {
                     const response = await fetch(filePath);
                     if (!response.ok)
@@ -733,10 +1239,62 @@
                 } catch (error) {
                     console.error('Error loading GeoJSON:', error);
                 }
-            }
+            };
+
+            const loadSavedRoutesList = async () => {
+                try {
+                    const response = await fetch('/list_saved_routes');
+                    const files = await response.json();
+                    const dropdown = document.getElementById('saved-routes-dropdown');
+                    dropdown.innerHTML = '';
+                    if (files.length === 0) {
+                        const option = document.createElement('option');
+                        option.textContent = '保存されたルートはありません';
+                        dropdown.appendChild(option);
+                    } else {
+                        files.forEach((file) => {
+                            const option = document.createElement('option');
+                            option.value = file;
+                            option.textContent = file;
+                            dropdown.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('保存済みルート一覧の取得に失敗:', error);
+                }
+            };
+
+            const loadSelectedRoute = async () => {
+                const dropdown = document.getElementById('saved-routes-dropdown');
+                const fileName = dropdown.value;
+                if (!fileName || fileName === '保存されたルートはありません') {
+                    alert('呼び出すルートを選択してください。');
+                    return;
+                }
+                try {
+                    setLoadingState(true, 'ルートを読み込んでいます...');
+                    const response = await fetch(
+                        `/get_saved_route?fileName=${encodeURIComponent(fileName)}`
+                    );
+                    if (!response.ok) {
+                        throw new Error(
+                            `サーバーからのルート取得に失敗しました: ${response.statusText}`
+                        );
+                    }
+                    const csvContent = await response.text();
+                    await drawSavedRoute(csvContent);
+                } catch (error) {
+                    console.error('ルートの読み込みエラー:', error);
+                    alert(error.message);
+                } finally {
+                    setLoadingState(false);
+                }
+            };
 
             window.addEventListener('load', function () {
                 loadCSVData();
+                loadSavedRoutesList();
+                setTimeout(() => map.invalidateSize(), 100); // Ensure map renders correctly after layout changes
             });
         </script>
     </body>
