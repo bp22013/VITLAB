@@ -791,6 +791,7 @@
 
                 let totalDistance = 0;
                 let totalTime = 0;
+                let speed = 80;
 
                 const routeDataMap = new Map();
                 sourceData.forEach((row) => {
@@ -810,7 +811,7 @@
                             routeDataMap.get(`${node2_str}-${node1_str}`);
                         if (routeInfo) {
                             totalDistance += routeInfo.distance || 0;
-                            totalTime += routeInfo.time_minutes || 0;
+                            totalTime = totalDistance / speed;
                         } else {
                             console.warn(`経路情報が見つかりません: ${segment}`);
                         }
