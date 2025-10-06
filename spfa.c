@@ -98,8 +98,8 @@ void spfa(int start_node, int num_nodes) {
         in_queue[u] = false;
 
         if (count[u]++ > num_nodes) {
-            printf("Negative cycle detected!\n");
-            return; // Negative cycle
+            printf("負の値が検出されました!\n");
+            return;
         }
 
         for (int i = 0; i < graph[u].edge_count; i++) {
@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
     // result.csvの読み込み
     FILE *file = fopen("result.csv", "r");
     if (file == NULL) {
-        printf("Error: Could not open result.csv\n");
+        printf("Error: result.csvが開けません\n");
         return 1;
     }
 
