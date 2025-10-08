@@ -142,37 +142,37 @@
                                 道路幅3
                             </button>
                             <button
-                                onclick="loadGeoAssign('illumination.txt','orange')"
+                                onclick="displayDataFromCSV('illumination','orange')"
                                 class="bg-orange-600 hover:bg-orange-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 照明
                             </button>
                             <button
-                                onclick="loadGeoAssign('nature.txt','green')"
+                                onclick="displayDataFromCSV('nature','green')"
                                 class="bg-green-600 hover:bg-green-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 自然
                             </button>
                             <button
-                                onclick="loadGeoAssign('park.txt','red')"
+                                onclick="displayDataFromCSV('park','red')"
                                 class="bg-red-700 hover:bg-red-600 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 公園
                             </button>
                             <button
-                                onclick="loadGeoAssign('garbage.txt','orange')"
+                                onclick="displayDataFromCSV('garbage','orange')"
                                 class="bg-orange-500 hover:bg-orange-400 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 ごみ
                             </button>
                             <button
-                                onclick="loadGeoAssign('toilet.txt','red')"
+                                onclick="displayDataFromCSV('toilet', 'pink')"
                                 class="bg-pink-600 hover:bg-pink-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 トイレ
                             </button>
                             <button
-                                onclick="loadGeoAssign('crosswalk1.txt','red')"
+                                onclick="displayDataFromCSV('crosswalk','red')"
                                 class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 px-2 rounded-lg transition-all duration-200 hover:scale-105"
                             >
                                 横断歩道
@@ -718,14 +718,14 @@
                 const container = document.getElementById('toast-container');
                 const toast = document.createElement('div');
                 toast.className = `toast ${type}`;
-                
+
                 let iconClass = 'fas fa-info-circle';
                 if (type === 'success') {
                     iconClass = 'fas fa-check-circle';
                 }
-                
+
                 toast.innerHTML = `<i class="${iconClass}"></i><span>${message}</span>`;
-                
+
                 container.appendChild(toast);
 
                 // Animate in
@@ -780,7 +780,9 @@
                                 </div>
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">所要時間</div>
-                                    <div class="text-white font-semibold">${formatTime(route1.info.totalTime)}</div>
+                                    <div class="text-white font-semibold">${formatTime(
+                                        route1.info.totalTime
+                                    )}</div>
                                 </div>
                             </div>
                         </div>
@@ -803,7 +805,9 @@
                                 </div>
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">所要時間</div>
-                                    <div class="text-white font-semibold">${formatTime(route2.info.totalTime)}</div>
+                                    <div class="text-white font-semibold">${formatTime(
+                                        route2.info.totalTime
+                                    )}</div>
                                 </div>
                             </div>
                         </div>
@@ -826,7 +830,9 @@
                                 </div>
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">所要時間</div>
-                                    <div class="text-white font-semibold">${formatTime(savedRoute.info.totalTime)}</div>
+                                    <div class="text-white font-semibold">${formatTime(
+                                        savedRoute.info.totalTime
+                                    )}</div>
                                 </div>
                             </div>
                         </div>
@@ -873,783 +879,581 @@
                 }
             };
 
-                        const calculateRouteInfo = (segments, sourceData) => {
+            const calculateRouteInfo = (segments, sourceData) => {
+                if (!sourceData || sourceData.length === 0) {
+                    console.error('経路情報データ(CSV)が読み込まれていません。');
 
-                            if (!sourceData || sourceData.length === 0) {
+                    return null;
+                }
 
-                                console.error('経路情報データ(CSV)が読み込まれていません。');
+                let totalDistance = 0;
 
-                                return null;
+                let totalTime = 0;
 
+                const speedInput = document.getElementById('walking-speed');
+
+                const speed = parseFloat(speedInput.value) || 80; // m/min
+
+                const routeDataMap = new Map();
+
+                sourceData.forEach((row) => {
+                    if (row.node1 !== undefined && row.node2 !== undefined) {
+                        routeDataMap.set(`${row.node1}-${row.node2}`, row);
+                    }
+                });
+
+                segments.forEach((segment) => {
+                    const fileName = segment.replace('.geojson', '');
+
+                    const routeInfo = routeDataMap.get(fileName);
+
+                    if (routeInfo) {
+                        totalDistance += routeInfo.distance || 0;
+                    } else {
+                        const nodes = fileName.split('-');
+
+                        if (nodes.length === 2) {
+                            const reverseRouteInfo = routeDataMap.get(`${nodes[1]}-${nodes[0]}`);
+
+                            if (reverseRouteInfo) {
+                                totalDistance += reverseRouteInfo.distance || 0;
+                            } else {
+                                console.warn(`経路情報が見つかりません: ${segment}`);
                             }
+                        }
+                    }
+                });
 
-            
+                if (speed > 0) {
+                    totalTime = totalDistance / speed;
+                }
 
-                            let totalDistance = 0;
+                return { totalDistance, totalTime };
+            };
 
-                            let totalTime = 0;
+            const drawRouteFromResult = async (resultText, color, weight, routeId) => {
+                const targetRoute = routeId === 1 ? route1 : route2;
 
-                            
+                targetRoute.layers.forEach((layer) => map.removeLayer(layer));
 
-                            const speedInput = document.getElementById('walking-speed');
+                targetRoute.layers = [];
 
-                            const speed = parseFloat(speedInput.value) || 80; // m/min
+                const segments = resultText.split('\n').filter((line) => line.trim() !== '');
 
-            
+                targetRoute.segments = segments;
 
-                            const routeDataMap = new Map();
+                const geojsonFiles = segments.map((line) => line.trim());
 
-                            sourceData.forEach((row) => {
+                const geojsonFolder = './oomiya_line/';
 
-                                if (row.node1 !== undefined && row.node2 !== undefined) {
+                targetRoute.info = calculateRouteInfo(segments, routeData);
 
-                                    routeDataMap.set(`${row.node1}-${row.node2}`, row);
+                updateRouteInfoDisplay();
 
-                                }
+                await Promise.all(
+                    geojsonFiles.map((filename) =>
+                        fetch(geojsonFolder + filename)
+                            .then((res) => {
+                                if (!res.ok) throw new Error(`${filename}の読み込みに失敗`);
 
-                            });
+                                return res.json();
+                            })
 
-            
+                            .then((data) => {
+                                const geojsonLayer = L.geoJSON(data, {
+                                    style: { color: color, weight: weight, opacity: 1.0 },
+                                }).addTo(map);
 
-                            segments.forEach((segment) => {
+                                targetRoute.layers.push(geojsonLayer);
+                            })
+                    )
+                );
+            };
 
-                                const fileName = segment.replace('.geojson', '');
+            const loadRouteFromCSV = async () => {
+                try {
+                    setLoadingState(true, '経路1を計算中...');
 
-                                const routeInfo = routeDataMap.get(fileName);
+                    await loadCSVData();
 
-                                if (routeInfo) {
+                    await calc();
 
-                                    totalDistance += routeInfo.distance || 0;
+                    const response = await fetch('result2.txt');
 
-                                } else {
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
 
-                                    const nodes = fileName.split('-');
+                    const newResultText = await response.text();
 
-                                    if (nodes.length === 2) {
+                    await drawRouteFromResult(newResultText, '#ff4757', 10, 1);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
 
-                                        const reverseRouteInfo = routeDataMap.get(`${nodes[1]}-${nodes[0]}`);
+                    alert('エラーが発生しました: ' + error.message);
+                } finally {
+                    setLoadingState(false);
+                }
+            };
 
-                                        if(reverseRouteInfo) {
+            const loadRouteFromCSV2 = async () => {
+                try {
+                    setLoadingState(true, '経路2を計算中...');
 
-                                            totalDistance += reverseRouteInfo.distance || 0;
+                    await loadCSVData();
 
-                                        } else {
+                    await calc();
 
-                                            console.warn(`経路情報が見つかりません: ${segment}`);
+                    const response = await fetch('result2.txt');
 
-                                        }
+                    if (!response.ok)
+                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
 
-                                    }
+                    const newResultText = await response.text();
 
-                                }
+                    await drawRouteFromResult(newResultText, '#3742fa', 6, 2);
+                } catch (error) {
+                    console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
 
-                            });
+                    alert('エラーが発生しました: ' + error.message);
+                } finally {
+                    setLoadingState(false);
+                }
+            };
 
-                            
+            const saveRoute = async (routeId) => {
+                const routeToSave = routeId === 1 ? route1 : route2;
 
-                            if (speed > 0) {
+                if (!routeToSave.segments || routeToSave.segments.length === 0) {
+                    alert('保存する経路がありません。');
 
-                                totalTime = totalDistance / speed;
+                    return;
+                }
 
-                            }
+                const fileName = prompt('ファイル名を入力してください (例: route1.csv):');
 
-            
+                if (!fileName) {
+                    return;
+                }
 
-                            return { totalDistance, totalTime };
+                const masterDataMap = new Map();
 
-                        };
+                const header = Object.keys(routeData[0]).join(',');
 
-            
+                routeData.forEach((row) => {
+                    masterDataMap.set(`${row.node1}-${row.node2}`, Object.values(row).join(','));
+                });
 
-                        const drawRouteFromResult = async (resultText, color, weight, routeId) => {
+                let csvContent = header + '\n';
 
-                            const targetRoute = routeId === 1 ? route1 : route2;
+                routeToSave.segments.forEach((segmentName) => {
+                    const cleanName = segmentName.replace('.geojson', '');
 
-                            targetRoute.layers.forEach((layer) => map.removeLayer(layer));
+                    const nodes = cleanName.split('-');
 
-                            targetRoute.layers = [];
+                    const key1 = `${nodes[0]}-${nodes[1]}`;
 
-            
+                    const key2 = `${nodes[1]}-${nodes[0]}`;
 
-                            const segments = resultText.split('\n').filter((line) => line.trim() !== '');
+                    const row = masterDataMap.get(key1) || masterDataMap.get(key2);
 
-                            targetRoute.segments = segments;
+                    if (row) {
+                        csvContent += row + '\n';
+                    }
+                });
 
-                            const geojsonFiles = segments.map((line) => line.trim());
+                const saveData = async (overwrite = false) => {
+                    try {
+                        const response = await fetch('/save_route', {
+                            method: 'POST',
 
-                            const geojsonFolder = './oomiya_line/';
+                            headers: { 'Content-Type': 'application/json' },
 
-            
+                            body: JSON.stringify({ fileName, csvContent, overwrite }),
+                        });
 
-                            targetRoute.info = calculateRouteInfo(segments, routeData);
+                        const result = await response.json();
 
-                            updateRouteInfoDisplay();
-
-            
-
-                            await Promise.all(
-
-                                geojsonFiles.map((filename) =>
-
-                                    fetch(geojsonFolder + filename)
-
-                                        .then((res) => {
-
-                                            if (!res.ok) throw new Error(`${filename}の読み込みに失敗`);
-
-                                            return res.json();
-
-                                        })
-
-                                        .then((data) => {
-
-                                            const geojsonLayer = L.geoJSON(data, {
-
-                                                style: { color: color, weight: weight, opacity: 1.0 },
-
-                                            }).addTo(map);
-
-                                            targetRoute.layers.push(geojsonLayer);
-
-                                        })
-
+                        if (result.status === 'exists') {
+                            if (
+                                confirm(
+                                    `ファイル "${result.finalFileName}" は既に存在します。上書きしますか？`
                                 )
-
+                            ) {
+                                await saveData(true);
+                            } else {
+                                alert('保存をキャンセルしました。');
+                            }
+                        } else if (result.status === 'success') {
+                            alert(
+                                `経路が "${result.finalFileName}" としてサーバーに保存されました。`
                             );
 
-                        };
+                            loadSavedRoutesList();
+                        } else {
+                            alert(`保存中にエラーが発生しました: ${result.message}`);
+                        }
+                    } catch (error) {
+                        console.error('保存エラー:', error);
 
-            
+                        alert('サーバーとの通信に失敗しました。');
+                    }
+                };
 
-                        const loadRouteFromCSV = async () => {
+                await saveData();
+            };
 
-                            try {
+            const drawSavedRoute = async (csvContent) => {
+                savedRoute.layers.forEach((layer) => map.removeLayer(layer));
 
-                                setLoadingState(true, '経路1を計算中...');
+                savedRoute.layers = [];
 
-                                await loadCSVData();
+                const parsed = Papa.parse(csvContent, {
+                    header: true,
 
-                                await calc();
+                    dynamicTyping: true,
 
-                                const response = await fetch('result2.txt');
+                    skipEmptyLines: true,
+                });
 
-                                if (!response.ok)
+                const savedSegmentsData = parsed.data;
 
-                                    throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
+                if (!savedSegmentsData || savedSegmentsData.length === 0) return;
 
-                                const newResultText = await response.text();
+                const segments = savedSegmentsData.map(
+                    (row) => `${row.node1}-${row.node2}.geojson`
+                );
 
-                                await drawRouteFromResult(newResultText, '#ff4757', 10, 1);
+                savedRoute.info = calculateRouteInfo(segments, savedSegmentsData);
 
-                            } catch (error) {
+                updateRouteInfoDisplay();
 
-                                console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
+                const geojsonFolder = './oomiya_line/';
 
-                                alert('エラーが発生しました: ' + error.message);
+                await Promise.all(
+                    segments.map((segmentFilename) =>
+                        fetch(geojsonFolder + segmentFilename)
+                            .then((res) => {
+                                if (!res.ok) console.warn(`${segmentFilename}の読み込みに失敗`);
 
-                            } finally {
+                                return res.json().catch(() => null);
+                            })
 
-                                setLoadingState(false);
+                            .then((data) => {
+                                if (data) {
+                                    const geojsonLayer = L.geoJSON(data, {
+                                        style: { color: '#2ed573', weight: 8, opacity: 0.8 },
+                                    }).addTo(map);
 
-                            }
-
-                        };
-
-            
-
-                        const loadRouteFromCSV2 = async () => {
-
-                            try {
-
-                                setLoadingState(true, '経路2を計算中...');
-
-                                await loadCSVData();
-
-                                await calc();
-
-                                const response = await fetch('result2.txt');
-
-                                if (!response.ok)
-
-                                    throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-
-                                const newResultText = await response.text();
-
-                                await drawRouteFromResult(newResultText, '#3742fa', 6, 2);
-
-                            } catch (error) {
-
-                                console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
-
-                                alert('エラーが発生しました: ' + error.message);
-
-                            } finally {
-
-                                setLoadingState(false);
-
-                            }
-
-                        };
-
-            
-
-                        const saveRoute = async (routeId) => {
-
-                            const routeToSave = routeId === 1 ? route1 : route2;
-
-                            if (!routeToSave.segments || routeToSave.segments.length === 0) {
-
-                                alert('保存する経路がありません。');
-
-                                return;
-
-                            }
-
-            
-
-                            const fileName = prompt('ファイル名を入力してください (例: route1.csv):');
-
-                            if (!fileName) {
-
-                                return;
-
-                            }
-
-            
-
-                            const masterDataMap = new Map();
-
-                            const header = Object.keys(routeData[0]).join(',');
-
-                            routeData.forEach((row) => {
-
-                                masterDataMap.set(`${row.node1}-${row.node2}`, Object.values(row).join(','));
-
-                            });
-
-            
-
-                            let csvContent = header + '\n';
-
-                            routeToSave.segments.forEach((segmentName) => {
-
-                                const cleanName = segmentName.replace('.geojson', '');
-
-                                const nodes = cleanName.split('-');
-
-                                const key1 = `${nodes[0]}-${nodes[1]}`;
-
-                                const key2 = `${nodes[1]}-${nodes[0]}`;
-
-                                const row = masterDataMap.get(key1) || masterDataMap.get(key2);
-
-                                if (row) {
-
-                                    csvContent += row + '\n';
-
+                                    savedRoute.layers.push(geojsonLayer);
                                 }
+                            })
+                    )
+                );
+            };
 
-                            });
+            const loadGeoAssign = (resultFile, color) => {
+                let geojsonFolder = './oomiya_line/';
 
-            
+                fetch(resultFile)
+                    .then((response) => {
+                        if (!response.ok) throw new Error(`Failed to fetch ${resultFile}`);
 
-                            const saveData = async (overwrite = false) => {
+                        return response.text();
+                    })
 
-                                try {
+                    .then((text) => {
+                        var lines = text.split('\n').filter((line) => line.trim() !== '');
 
-                                    const response = await fetch('/save_route', {
-
-                                        method: 'POST',
-
-                                        headers: { 'Content-Type': 'application/json' },
-
-                                        body: JSON.stringify({ fileName, csvContent, overwrite }),
-
-                                    });
-
-            
-
-                                    const result = await response.json();
-
-            
-
-                                    if (result.status === 'exists') {
-
-                                        if (
-
-                                            confirm(
-
-                                                `ファイル "${result.finalFileName}" は既に存在します。上書きしますか？`
-
-                                            )
-
-                                        ) {
-
-                                            await saveData(true);
-
-                                        } else {
-
-                                            alert('保存をキャンセルしました。');
-
-                                        }
-
-                                    } else if (result.status === 'success') {
-
-                                        alert(
-
-                                            `経路が "${result.finalFileName}" としてサーバーに保存されました。`
-
-                                        );
-
-                                        loadSavedRoutesList();
-
-                                    } else {
-
-                                        alert(`保存中にエラーが発生しました: ${result.message}`);
-
-                                    }
-
-                                } catch (error) {
-
-                                    console.error('保存エラー:', error);
-
-                                    alert('サーバーとの通信に失敗しました。');
-
-                                }
-
-                            };
-
-            
-
-                            await saveData();
-
-                        };
-
-            
-
-                        const drawSavedRoute = async (csvContent) => {
-
-                            savedRoute.layers.forEach((layer) => map.removeLayer(layer));
-
-                            savedRoute.layers = [];
-
-            
-
-                            const parsed = Papa.parse(csvContent, {
-
-                                header: true,
-
-                                dynamicTyping: true,
-
-                                skipEmptyLines: true,
-
-                            });
-
-                            const savedSegmentsData = parsed.data;
-
-                            if (!savedSegmentsData || savedSegmentsData.length === 0) return;
-
-            
-
-                            const segments = savedSegmentsData.map(
-
-                                (row) => `${row.node1}-${row.node2}.geojson`
-
-                            );
-
-                            savedRoute.info = calculateRouteInfo(segments, savedSegmentsData);
-
-                            updateRouteInfoDisplay();
-
-            
-
-                            const geojsonFolder = './oomiya_line/';
-
-                            await Promise.all(
-
-                                segments.map((segmentFilename) =>
-
-                                    fetch(geojsonFolder + segmentFilename)
-
-                                        .then((res) => {
-
-                                            if (!res.ok) console.warn(`${segmentFilename}の読み込みに失敗`);
-
-                                            return res.json().catch(() => null);
-
-                                        })
-
-                                        .then((data) => {
-
-                                            if (data) {
-
-                                                const geojsonLayer = L.geoJSON(data, {
-
-                                                    style: { color: '#2ed573', weight: 8, opacity: 0.8 },
-
-                                                }).addTo(map);
-
-                                                savedRoute.layers.push(geojsonLayer);
-
-                                            }
-
-                                        })
-
-                                )
-
-                            );
-
-                        };
-
-            
-
-                        const loadGeoAssign = (resultFile, color) => {
-
-                            let geojsonFolder = './oomiya_line/';
-
-                            fetch(resultFile)
-
+                        lines.forEach(function (filename) {
+                            fetch(geojsonFolder + filename)
                                 .then((response) => {
-
-                                    if (!response.ok) throw new Error(`Failed to fetch ${resultFile}`);
-
-                                    return response.text();
-
-                                })
-
-                                .then((text) => {
-
-                                    var lines = text.split('\n').filter((line) => line.trim() !== '');
-
-                                    lines.forEach(function (filename) {
-
-                                        fetch(geojsonFolder + filename)
-
-                                            .then((response) => {
-
-                                                if (!response.ok)
-
-                                                    throw new Error(`Failed to fetch ${filename}`);
-
-                                                return response.json();
-
-                                            })
-
-                                            .then((data) => {
-
-                                                var geojsonLayer = L.geoJSON(data, {
-
-                                                    style: { color: color, weight: 15, opacity: 0.2 },
-
-                                                }).addTo(map);
-
-                                                otherLayers.push(geojsonLayer);
-
-                                            })
-
-                                            .catch((error) =>
-
-                                                console.error(`Error loading GeoJSON ${filename}:`, error)
-
-                                            );
-
-                                    });
-
-                                })
-
-                                .catch((error) => console.error(`Error loading ${resultFile}:`, error));
-
-                        };
-
-            
-
-                        const drawGeoJSON = (url, color, weight, opacity) => {
-
-                            fetch(url)
-
-                                .then((response) => {
-
-                                    if (!response.ok) {
-
-                                        if (response.status === 404) return null;
-
-                                        throw new Error(`Error loading GeoJSON`);
-
-                                    }
+                                    if (!response.ok)
+                                        throw new Error(`Failed to fetch ${filename}`);
 
                                     return response.json();
-
                                 })
 
                                 .then((data) => {
+                                    var geojsonLayer = L.geoJSON(data, {
+                                        style: { color: color, weight: 15, opacity: 0.2 },
+                                    }).addTo(map);
 
-                                    if (data) {
-
-                                        var geojsonLayer = L.geoJSON(data, {
-
-                                            style: { color: color, weight: weight, opacity: opacity },
-
-                                        }).addTo(map);
-
-                                        otherLayers.push(geojsonLayer);
-
-                                    }
-
+                                    otherLayers.push(geojsonLayer);
                                 })
 
-                                .catch((error) => console.error(error.message));
+                                .catch((error) =>
+                                    console.error(`Error loading GeoJSON ${filename}:`, error)
+                                );
+                        });
+                    })
 
-                        };
+                    .catch((error) => console.error(`Error loading ${resultFile}:`, error));
+            };
 
-            
+            const drawGeoJSON = (url, color, weight, opacity) => {
+                fetch(url)
+                    .then((response) => {
+                        if (!response.ok) {
+                            if (response.status === 404) return null;
 
-                        const displayDataFromCSV = async (dataType, color) => {
+                            throw new Error(`Error loading GeoJSON`);
+                        }
 
-                            await loadCSVData();
+                        return response.json();
+                    })
 
-                            let geojsonFolder = './oomiya_line/';
+                    .then((data) => {
+                        if (data) {
+                            var geojsonLayer = L.geoJSON(data, {
+                                style: { color: color, weight: weight, opacity: opacity },
+                            }).addTo(map);
 
-            
+                            otherLayers.push(geojsonLayer);
+                        }
+                    })
 
-                            // Special handling for interactive signals
+                    .catch((error) => console.error(error.message));
+            };
 
-                            if (dataType === 'signal') {
+            const displayDataFromCSV = async (dataType, color) => {
+                console.log(
+                    `--- displayDataFromCSV called with dataType: ${dataType}, color: ${color} ---`
+                );
 
-                                routeData.forEach(row => {
+                await loadCSVData();
 
-                                    if (row.signal == 1) {
+                let geojsonFolder = './oomiya_line/';
 
-                                        const edgeName = `${row.node1}-${row.node2}`;
+                if (dataType === 'signal') {
+                    let foundCount = 0;
 
-                                        const url = geojsonFolder + edgeName + '.geojson';
+                    routeData.forEach((row) => {
+                        if (row.signal == 1) {
+                            foundCount++;
 
-            
+                            const edgeName = `${row.node1}-${row.node2}`;
 
-                                        fetch(url)
+                            const url = geojsonFolder + edgeName + '.geojson';
 
-                                            .then(response => {
+                            console.log(
+                                `Condition met for ${dataType}. Drawing interactive layer for: ${url}`
+                            );
 
-                                                if (!response.ok) return; // Ignore missing geojson files silently
+                            fetch(url)
+                                .then((response) => {
+                                    if (!response.ok) return; // Ignore missing geojson files silently
 
-                                                return response.json();
+                                    return response.json();
+                                })
 
-                                            })
+                                .then((data) => {
+                                    if (!data) return;
 
-                                            .then(data => {
+                                    const signalLayer = L.geoJSON(data, {
+                                        style: { color: color, weight: 15, opacity: 0.5 },
+                                    });
 
-                                                if (!data) return;
+                                    signalLayer.bindPopup(
+                                        `<b>信号区間: ${edgeName}</b><br>クリックで待ち時間を計算`
+                                    );
 
-                                                const signalLayer = L.geoJSON(data, {
+                                    signalLayer.on('mouseover', function (e) {
+                                        this.setStyle({ opacity: 0.8, weight: 20 });
 
-                                                    style: { color: color, weight: 15, opacity: 0.5 }
+                                        this.openPopup();
+                                    });
 
-                                                });
+                                    signalLayer.on('mouseout', function (e) {
+                                        this.setStyle({ opacity: 0.5, weight: 15 });
 
-            
+                                        this.closePopup();
+                                    });
 
-                                                signalLayer.bindPopup(`<b>信号区間: ${edgeName}</b><br>クリックで待ち時間を計算`);
+                                    signalLayer.on('click', async () => {
+                                        const speedInput = document.getElementById('walking-speed');
 
-                                                
+                                        const speed = parseFloat(speedInput.value);
 
-                                                signalLayer.on('mouseover', function (e) {
+                                        if (isNaN(speed) || speed <= 0) {
+                                            alert('有効な歩行速度（m/分）を入力してください。');
 
-                                                    this.setStyle({ opacity: 0.8, weight: 20 });
+                                            return;
+                                        }
 
-                                                    this.openPopup();
+                                        const speedMps = speed / 60; // Convert m/min to m/s for backend
 
-                                                });
+                                        let routeId = null;
 
-                                                signalLayer.on('mouseout', function (e) {
+                                        let targetRoute = null;
 
-                                                    this.setStyle({ opacity: 0.5, weight: 15 });
+                                        const geojsonFilename = edgeName + '.geojson';
 
-                                                    this.closePopup();
+                                        if (route1.segments.includes(geojsonFilename)) {
+                                            routeId = 1;
 
-                                                });
+                                            targetRoute = route1;
+                                        } else if (route2.segments.includes(geojsonFilename)) {
+                                            routeId = 2;
 
-            
+                                            targetRoute = route2;
+                                        } else {
+                                            alert(
+                                                'この信号は現在計算されている経路上にありません。'
+                                            );
 
-                                                signalLayer.on('click', async () => {
+                                            return;
+                                        }
 
-                                                    const speedInput = document.getElementById('walking-speed');
+                                        try {
+                                            setLoadingState(
+                                                true,
+                                                `信号 ${edgeName} を基準に待ち時間を計算中...`
+                                            );
 
-                                                    const speed = parseFloat(speedInput.value);
+                                            const pureRouteInfo = calculateRouteInfo(
+                                                targetRoute.segments,
+                                                routeData
+                                            );
 
-                                                    if (isNaN(speed) || speed <= 0) {
+                                            const baseTime = pureRouteInfo.totalTime;
 
-                                                        alert('有効な歩行速度（m/分）を入力してください。');
+                                            const response = await fetch('/calculate-wait-time', {
+                                                method: 'POST',
 
-                                                        return;
+                                                headers: { 'Content-Type': 'application/json' },
 
-                                                    }
+                                                body: JSON.stringify({
+                                                    referenceEdge: edgeName,
+                                                    walkingSpeed: speedMps,
+                                                }),
+                                            });
 
-                                                    const speedMps = speed / 60; // Convert m/min to m/s for backend
+                                            if (!response.ok) {
+                                                const errData = await response.json();
 
-            
+                                                throw new Error(
+                                                    errData.error ||
+                                                        `計算エラー: ${response.statusText}`
+                                                );
+                                            }
 
-                                                    let routeId = null;
+                                            const result = await response.json();
 
-                                                    let targetRoute = null;
+                                            const newTotalTime = baseTime + result.totalWaitTime;
 
-                                                    const geojsonFilename = edgeName + '.geojson';
+                                            targetRoute.info.totalTime = newTotalTime;
 
-            
+                                            updateRouteInfoDisplay();
 
-                                                    if (route1.segments.includes(geojsonFilename)) {
+                                            showToast(
+                                                `経路${routeId}の所要時間を更新しました。`,
+                                                'success'
+                                            );
+                                        } catch (error) {
+                                            console.error('Wait time calculation error:', error);
 
-                                                        routeId = 1;
+                                            alert(
+                                                `待ち時間計算中にエラーが発生しました: ${error.message}`
+                                            );
+                                        } finally {
+                                            setLoadingState(false);
+                                        }
+                                    });
 
-                                                        targetRoute = route1;
+                                    signalLayer.addTo(map);
 
-                                                    } else if (route2.segments.includes(geojsonFilename)) {
+                                    otherLayers.push(signalLayer);
+                                })
 
-                                                        routeId = 2;
-
-                                                        targetRoute = route2;
-
-                                                    } else {
-
-                                                        alert('この信号は現在計算されている経路上にありません。');
-
-                                                        return;
-
-                                                    }
-
-            
-
-                                                    try {
-
-                                                        setLoadingState(true, `信号 ${edgeName} を基準に待ち時間を計算中...`);
-
-                                                        
-
-                                                        // Recalculate pure travel time from scratch to use as base
-
-                                                        const pureRouteInfo = calculateRouteInfo(targetRoute.segments, routeData);
-
-                                                        const baseTime = pureRouteInfo.totalTime; 
-
-            
-
-                                                        const response = await fetch('/calculate-wait-time', {
-
-                                                            method: 'POST',
-
-                                                            headers: { 'Content-Type': 'application/json' },
-
-                                                            body: JSON.stringify({ referenceEdge: edgeName, walkingSpeed: speedMps })
-
-                                                        });
-
-                                                        
-
-                                                        if (!response.ok) {
-
-                                                            const errData = await response.json();
-
-                                                            throw new Error(errData.error || `計算エラー: ${response.statusText}`);
-
-                                                        }
-
-            
-
-                                                        const result = await response.json();
-
-                                                        const newTotalTime = baseTime + result.totalWaitTime;
-
-            
-
-                                                        // Update the display property
-
-                                                        targetRoute.info.totalTime = newTotalTime;
-
-                                                        
-
-                                                        updateRouteInfoDisplay();
-
-                                                        showToast(`経路${routeId}の所要時間を更新しました。`, 'success');
-
-            
-
-                                                    } catch (error) {
-
-                                                        console.error('Wait time calculation error:', error);
-
-                                                        alert(`待ち時間計算中にエラーが発生しました: ${error.message}`);
-
-                                                    } finally {
-
-                                                        setLoadingState(false);
-
-                                                    }
-
-                                                });
-
-            
-
-                                                signalLayer.addTo(map);
-
-                                                otherLayers.push(signalLayer);
-
-                                            })
-
-                                            .catch(error => { /* Silently ignore errors for missing files */ });
-
-                                    }
-
+                                .catch((error) => {
+                                    /* Silently ignore errors for missing files */
                                 });
+                        }
+                    });
 
-                            } else {
+                    console.log(`Found ${foundCount} items for dataType '${dataType}'.`);
 
-                                // Original logic for other data types
+                    if (foundCount === 0) {
+                        showToast(`'${dataType}' に該当するデータが見つかりませんでした。`, 'info');
+                    }
+                } else {
+                    let foundCount = 0;
 
-                                routeData.forEach(function (row) {
+                    routeData.forEach(function (row) {
+                        let conditionMet = false;
 
-                                    let conditionMet = false;
+                        switch (dataType) {
+                            case 'sidewalk':
+                                if (row.sidewalk == 1) conditionMet = true;
 
-                                    switch (dataType) {
+                                break;
 
-                                        case 'sidewalk':
+                            case 'nature':
+                                if (row.nature == 1) conditionMet = true;
 
-                                            if (row.sidewalk == 1) conditionMet = true;
+                                break;
 
-                                            break;
+                            case 'road_width1':
+                                if (row.road_width == 1) conditionMet = true;
 
-                                        case 'road_width1':
+                                break;
 
-                                            if (row.road_width == 1) conditionMet = true;
+                            case 'road_width2':
+                                if (row.road_width == 2) conditionMet = true;
 
-                                            break;
+                                break;
 
-                                        case 'road_width2':
+                            case 'road_width3':
+                                if (row.road_width >= 3) conditionMet = true;
 
-                                            if (row.road_width == 2) conditionMet = true;
+                                break;
 
-                                            break;
+                            case 'park':
+                                if (row.park >= 1) conditionMet = true;
 
-                                        case 'road_width3':
+                                break;
 
-                                            if (row.road_width >= 3) conditionMet = true;
+                            case 'illumination':
+                                if (row.illumination >= 1) conditionMet = true;
 
-                                            break;
+                                break;
 
-                                    }
+                            case 'crosswalk':
+                                if (row.crosswalk >= 1) conditionMet = true;
 
-                                    if (conditionMet) {
+                                break;
 
-                                        const filename = `${row.node1}-${row.node2}.geojson`;
+                            case 'garbage':
+                                if (row.garbage >= 1) conditionMet = true;
 
-                                        const url = geojsonFolder + filename;
+                                break;
 
-                                        drawGeoJSON(url, color, 15, 0.3);
+                            case 'toilet':
+                                if (row.toilet == 1) conditionMet = true;
 
-                                    }
+                                break;
+                        }
 
-                                });
+                        if (conditionMet) {
+                            foundCount++;
 
-                            }
+                            const filename = `${row.node1}-${row.node2}.geojson`;
 
-                        };
+                            const url = geojsonFolder + filename;
+
+                            console.log(`Condition met for ${dataType}. Drawing: ${url}`);
+
+                            drawGeoJSON(url, color, 15, 0.3);
+                        }
+                    });
+
+                    console.log(`Found ${foundCount} items for dataType '${dataType}'.`);
+
+                    if (foundCount === 0) {
+                        showToast(`'${dataType}' に該当するデータが見つかりませんでした。`, 'info');
+                    }
+                }
+            };
 
             const calc = () => {
                 var param1 = document.getElementById('param1').value;
