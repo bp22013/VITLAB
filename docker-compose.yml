@@ -11,25 +11,11 @@ services:
       - ./oomiya_line:/app/oomiya_line
       - ./oomiya_point:/app/oomiya_point
       - ./RE_AREA.geojson:/app/RE_AREA.geojson
-      - ./point_name.txt:/app/point_name.txt
       - ./oomiya_route_inf_4.csv:/app/oomiya_route_inf_4.csv
-      - ./result.txt:/app/result.txt
       - ./result2.txt:/app/result2.txt
-      - ./sidewalk.txt:/app/sidewalk.txt
       - ./signal.txt:/app/signal.txt
-      - ./roadwidth1.txt:/app/roadwidth1.txt
-      - ./roadwidth2.txt:/app/roadwidth2.txt
-      - ./roadwidth3.txt:/app/roadwidth3.txt
-      - ./illumination.txt:/app/illumination.txt
-      - ./nature.txt:/app/nature.txt
-      - ./park.txt:/app/park.txt
-      - ./garbage.txt:/app/garbage.txt
-      - ./toilet.txt:/app/toilet.txt
-      - ./crosswalk1.txt:/app/crosswalk1.txt
-      - ./crosswalk-1.txt:/app/crosswalk-1.txt
       - ./saving_route:/app/saving_route
       # Ubuntu 20.04でコンパイルされた実行ファイルをマウント
-      - ./djk21:/app/djk21
       - ./up44:/app/up44
     environment:
       - NODE_ENV=production

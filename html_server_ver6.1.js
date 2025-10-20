@@ -56,28 +56,30 @@ const server = http.createServer(async (req, res) => {
     if (req.url === '/calc' && req.method === 'POST') {
         let body = '';
         req.on('data', (chunk) => (body += chunk));
-        req.on('end', () => {
-            const p = new URLSearchParams(body);
-
-            const args = [
-                p.get('weight0'),
-                p.get('weight1'),
-                p.get('weight2'),
-                p.get('weight3'),
-                p.get('weight4'),
-                p.get('weight5'),
-                p.get('weight6'),
-                p.get('weight7'),
-                p.get('weight8'),
-                p.get('weight9'),
-                p.get('weight10'),
-                p.get('weight11'),
-                p.get('weight12'),
-                p.get('param1'),
-                p.get('param2'),
-            ].join(' ');
-
+        req.on('end', async () => {
             try {
+                const p = new URLSearchParams(body);
+
+                const args = [
+                    p.get('weight0'),
+                    p.get('weight1'),
+                    p.get('weight2'),
+                    p.get('weight3'),
+                    p.get('weight4'),
+                    p.get('weight5'),
+                    p.get('weight6'),
+                    p.get('weight7'),
+                    p.get('weight8'),
+                    p.get('weight9'),
+                    p.get('weight10'),
+                    p.get('weight11'),
+                    p.get('weight12'),
+                    p.get('param1'),
+                    p.get('param2'),
+                ].join(' ');
+
+                const walkingSpeed = parseFloat(p.get('walkingSpeed')) || 80; // m/min
+
                 console.log(`実行コマンド1: ./spfa21 ${p.get('param1')} ${p.get('param2')}`);
                 console.log(`実行コマンド2: ./up44 ${args}`);
 
@@ -87,21 +89,77 @@ const server = http.createServer(async (req, res) => {
                 });
                 console.log(`spfa21実行結果: ${shortest}`);
 
-                const userPref = execSync(`./up44 ${args}`, {
+                const userPrefStdOut = execSync(`./up44 ${args}`, {
                     encoding: 'utf8',
                     cwd: __dirname,
                 });
-                console.log(`up44実行結果: ${userPref}`);
+                console.log(`up44実行結果(stdout): ${userPrefStdOut}`);
 
-                res.writeHead(200, { 'Content-Type': 'text/plain' });
-                res.end(`最短経路結果:\n${shortest}\n\nユーザー好み結果:\n${userPref}`);
+                const userPref = fs.readFileSync('result2.txt', 'utf8');
+
+                // Calculation logic starts here
+                const routeEdges = userPref.split('\n').filter(l => l.trim() !== '').map(l => l.replace('.geojson', ''));
+
+                const routeInfoCsv = fs.readFileSync('oomiya_route_inf_4.csv', 'utf8');
+                const signalInfoCsv = fs.readFileSync('signal_inf.csv', 'utf8');
+
+                const routeDataMap = new Map();
+                routeInfoCsv.split('\n').slice(1).forEach(line => {
+                    if (line.trim() === '') return;
+                    const cols = line.trim().split(',');
+                    routeDataMap.set(`${cols[0]}-${cols[1]}`, { distance: parseFloat(cols[2]), isSignal: cols[8] === '1' });
+                });
+
+                const signalDataMap = new Map();
+                signalInfoCsv.split('\n').slice(1).forEach(line => {
+                    if (line.trim() === '') return;
+                    const cols = line.trim().split(',');
+                    signalDataMap.set(`${cols[0]}-${cols[1]}`, { cycle: parseInt(cols[2], 10), green: parseInt(cols[3], 10) });
+                });
+
+                let totalDistance = 0;
+                routeEdges.forEach(edge => {
+                    const edgeData = routeDataMap.get(edge);
+                    if (edgeData) {
+                        totalDistance += edgeData.distance;
+                    }
+                });
+
+                let totalTime = totalDistance / walkingSpeed; // in minutes
+
+                let totalExpectedWaitTimeSeconds = 0;
+                for (const edge of routeEdges) {
+                    const edgeData = routeDataMap.get(edge);
+                    if (edgeData && edgeData.isSignal) {
+                        const signalData = signalDataMap.get(edge);
+                        if (signalData && signalData.cycle > 0) {
+                            const redTime = signalData.cycle - signalData.green;
+                            if (redTime > 0) {
+                                const expectedWaitTime = (redTime * redTime) / (2 * signalData.cycle);
+                                totalExpectedWaitTimeSeconds += expectedWaitTime;
+                            }
+                        }
+                    }
+                }
+
+                const totalExpectedWaitTimeMinutes = totalExpectedWaitTimeSeconds / 60;
+                totalTime += totalExpectedWaitTimeMinutes;
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    shortest,
+                    userPref,
+                    totalDistance,
+                    totalTime
+                }));
+
             } catch (err) {
                 console.error(`実行エラー詳細: ${err.message}`);
                 console.error(`stderr: ${err.stderr}`);
                 console.error(`stdout: ${err.stdout}`);
                 console.error(`status: ${err.status}`);
-                res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end(`Error: ${err.message}\nstderr: ${err.stderr}\nstdout: ${err.stdout}`);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.message, stderr: err.stderr, stdout: err.stdout }));
             }
         });
         return;
