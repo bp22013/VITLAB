@@ -766,23 +766,24 @@
 
                 if (route1.info) {
                     hasInfo = true;
+                    const waitTimeSeconds1 = route1.info.totalWaitTime ? Math.round(route1.info.totalWaitTime * 60) : 0;
                     content += `
                         <div class="bg-red-500/20 border border-red-300/30 rounded-lg p-2">
                             <h4 class="text-red-200 font-semibold mb-2 flex items-center gap-2">
                                 <i class="fas fa-route"></i>経路1 (赤)
                             </h4>
-                            <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div class="grid grid-cols-3 gap-2 text-sm">
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">総距離</div>
-                                    <div class="text-white font-semibold">${route1.info.totalDistance.toFixed(
-                                        0
-                                    )} m</div>
+                                    <div class="text-white font-semibold">${route1.info.totalDistance.toFixed(0)} m</div>
                                 </div>
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">所要時間</div>
-                                    <div class="text-white font-semibold">${formatTime(
-                                        route1.info.totalTime
-                                    )}</div>
+                                    <div class="text-white font-semibold">${formatTime(route1.info.totalTime)}</div>
+                                </div>
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">待ち時間</div>
+                                    <div class="text-white font-semibold">${waitTimeSeconds1}秒</div>
                                 </div>
                             </div>
                         </div>
@@ -791,23 +792,24 @@
 
                 if (route2.info) {
                     hasInfo = true;
+                    const waitTimeSeconds2 = route2.info.totalWaitTime ? Math.round(route2.info.totalWaitTime * 60) : 0;
                     content += `
                         <div class="bg-blue-500/20 border border-blue-300/30 rounded-lg p-2">
                             <h4 class="text-blue-200 font-semibold mb-2 flex items-center gap-2">
                                 <i class="fas fa-route"></i>経路2 (青)
                             </h4>
-                            <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div class="grid grid-cols-3 gap-2 text-sm">
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">総距離</div>
-                                    <div class="text-white font-semibold">${route2.info.totalDistance.toFixed(
-                                        0
-                                    )} m</div>
+                                    <div class="text-white font-semibold">${route2.info.totalDistance.toFixed(0)} m</div>
                                 </div>
                                 <div class="bg-white/10 rounded p-1 text-center">
                                     <div class="text-white/70 text-xs">所要時間</div>
-                                    <div class="text-white font-semibold">${formatTime(
-                                        route2.info.totalTime
-                                    )}</div>
+                                    <div class="text-white font-semibold">${formatTime(route2.info.totalTime)}</div>
+                                </div>
+                                <div class="bg-white/10 rounded p-1 text-center">
+                                    <div class="text-white/70 text-xs">待ち時間</div>
+                                    <div class="text-white font-semibold">${waitTimeSeconds2}秒</div>
                                 </div>
                             </div>
                         </div>
@@ -948,7 +950,8 @@
 
                 targetRoute.info = {
                     totalDistance: result.totalDistance,
-                    totalTime: result.totalTime
+                    totalTime: result.totalTime,
+                    totalWaitTime: result.totalWaitTime
                 };
 
                 updateRouteInfoDisplay();
@@ -1331,6 +1334,7 @@
                                             const newTotalTime = baseTime + result.totalWaitTime;
 
                                             targetRoute.info.totalTime = newTotalTime;
+                                            targetRoute.info.totalWaitTime = result.totalWaitTime; // Update wait time
 
                                             updateRouteInfoDisplay();
 

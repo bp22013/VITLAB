@@ -98,27 +98,42 @@ const server = http.createServer(async (req, res) => {
                 const userPref = fs.readFileSync('result2.txt', 'utf8');
 
                 // Calculation logic starts here
-                const routeEdges = userPref.split('\n').filter(l => l.trim() !== '').map(l => l.replace('.geojson', ''));
+                const routeEdges = userPref
+                    .split('\n')
+                    .filter((l) => l.trim() !== '')
+                    .map((l) => l.replace('.geojson', ''));
 
                 const routeInfoCsv = fs.readFileSync('oomiya_route_inf_4.csv', 'utf8');
                 const signalInfoCsv = fs.readFileSync('signal_inf.csv', 'utf8');
 
                 const routeDataMap = new Map();
-                routeInfoCsv.split('\n').slice(1).forEach(line => {
-                    if (line.trim() === '') return;
-                    const cols = line.trim().split(',');
-                    routeDataMap.set(`${cols[0]}-${cols[1]}`, { distance: parseFloat(cols[2]), isSignal: cols[8] === '1' });
-                });
+                routeInfoCsv
+                    .split('\n')
+                    .slice(1)
+                    .forEach((line) => {
+                        if (line.trim() === '') return;
+                        const cols = line.trim().split(',');
+                        routeDataMap.set(`${cols[0]}-${cols[1]}`, {
+                            distance: parseFloat(cols[2]),
+                            isSignal: cols[8] === '1',
+                        });
+                    });
 
                 const signalDataMap = new Map();
-                signalInfoCsv.split('\n').slice(1).forEach(line => {
-                    if (line.trim() === '') return;
-                    const cols = line.trim().split(',');
-                    signalDataMap.set(`${cols[0]}-${cols[1]}`, { cycle: parseInt(cols[2], 10), green: parseInt(cols[3], 10) });
-                });
+                signalInfoCsv
+                    .split('\n')
+                    .slice(1)
+                    .forEach((line) => {
+                        if (line.trim() === '') return;
+                        const cols = line.trim().split(',');
+                        signalDataMap.set(`${cols[0]}-${cols[1]}`, {
+                            cycle: parseInt(cols[2], 10),
+                            green: parseInt(cols[3], 10),
+                        });
+                    });
 
                 let totalDistance = 0;
-                routeEdges.forEach(edge => {
+                routeEdges.forEach((edge) => {
                     const edgeData = routeDataMap.get(edge);
                     if (edgeData) {
                         totalDistance += edgeData.distance;
@@ -135,7 +150,8 @@ const server = http.createServer(async (req, res) => {
                         if (signalData && signalData.cycle > 0) {
                             const redTime = signalData.cycle - signalData.green;
                             if (redTime > 0) {
-                                const expectedWaitTime = (redTime * redTime) / (2 * signalData.cycle);
+                                const expectedWaitTime =
+                                    (redTime * redTime) / (2 * signalData.cycle);
                                 totalExpectedWaitTimeSeconds += expectedWaitTime;
                             }
                         }
@@ -146,20 +162,24 @@ const server = http.createServer(async (req, res) => {
                 totalTime += totalExpectedWaitTimeMinutes;
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    shortest,
-                    userPref,
-                    totalDistance,
-                    totalTime
-                }));
-
+                res.end(
+                    JSON.stringify({
+                        shortest,
+                        userPref,
+                        totalDistance,
+                        totalTime,
+                        totalWaitTime: totalExpectedWaitTimeMinutes,
+                    })
+                );
             } catch (err) {
                 console.error(`実行エラー詳細: ${err.message}`);
                 console.error(`stderr: ${err.stderr}`);
                 console.error(`stdout: ${err.stdout}`);
                 console.error(`status: ${err.status}`);
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: err.message, stderr: err.stderr, stdout: err.stdout }));
+                res.end(
+                    JSON.stringify({ error: err.message, stderr: err.stderr, stdout: err.stdout })
+                );
             }
         });
         return;
@@ -175,13 +195,17 @@ const server = http.createServer(async (req, res) => {
                 console.log('Request body:', body);
                 const { referenceEdge, walkingSpeed } = JSON.parse(body);
                 if (!referenceEdge || !walkingSpeed) {
-                    throw new Error("referenceEdgeとwalkingSpeedは必須です。");
+                    throw new Error('referenceEdgeとwalkingSpeedは必須です。');
                 }
-                console.log(`[OK] パラメータ取得: referenceEdge=${referenceEdge}, walkingSpeed=${walkingSpeed}`);
+                console.log(
+                    `[OK] パラメータ取得: referenceEdge=${referenceEdge}, walkingSpeed=${walkingSpeed}`
+                );
 
                 // Robustness checks
-                if (!fs.existsSync('signal_inf.csv')) throw new Error('サーバーに signal_inf.csv が見つかりません。');
-                if (!fs.existsSync('result2.txt')) throw new Error('result2.txt が見つかりません。先に経路を計算してください。');
+                if (!fs.existsSync('signal_inf.csv'))
+                    throw new Error('サーバーに signal_inf.csv が見つかりません。');
+                if (!fs.existsSync('result2.txt'))
+                    throw new Error('result2.txt が見つかりません。先に経路を計算してください。');
                 console.log('[OK] 必須ファイルの存在を確認');
 
                 // 1. Read data files
@@ -196,27 +220,47 @@ const server = http.createServer(async (req, res) => {
 
                 // 2. Create lookup maps
                 const routeDataMap = new Map();
-                routeInfoCsv.split('\n').slice(1).forEach(line => {
-                    if (line.trim() === '') return;
-                    const cols = line.trim().split(',');
-                    routeDataMap.set(`${cols[0]}-${cols[1]}`, { distance: parseFloat(cols[2]), isSignal: cols[8] === '1' });
-                });
+                routeInfoCsv
+                    .split('\n')
+                    .slice(1)
+                    .forEach((line) => {
+                        if (line.trim() === '') return;
+                        const cols = line.trim().split(',');
+                        routeDataMap.set(`${cols[0]}-${cols[1]}`, {
+                            distance: parseFloat(cols[2]),
+                            isSignal: cols[8] === '1',
+                        });
+                    });
 
                 const signalDataMap = new Map();
-                signalInfoCsv.split('\n').slice(1).forEach(line => {
-                    if (line.trim() === '') return;
-                    const cols = line.trim().split(',');
-                    signalDataMap.set(`${cols[0]}-${cols[1]}`, { cycle: parseInt(cols[2], 10), green: parseInt(cols[3], 10), phase: parseInt(cols[4], 10) });
-                });
+                signalInfoCsv
+                    .split('\n')
+                    .slice(1)
+                    .forEach((line) => {
+                        if (line.trim() === '') return;
+                        const cols = line.trim().split(',');
+                        signalDataMap.set(`${cols[0]}-${cols[1]}`, {
+                            cycle: parseInt(cols[2], 10),
+                            green: parseInt(cols[3], 10),
+                            phase: parseInt(cols[4], 10),
+                        });
+                    });
                 console.log('[OK] データマップの作成完了');
 
-                const routeEdges = routeResultTxt.split('\n').filter(l => l.trim() !== '').map(l => l.replace('.geojson', ''));
-                const signalizedRouteEdges = routeEdges.filter(edge => routeDataMap.get(edge)?.isSignal);
+                const routeEdges = routeResultTxt
+                    .split('\n')
+                    .filter((l) => l.trim() !== '')
+                    .map((l) => l.replace('.geojson', ''));
+                const signalizedRouteEdges = routeEdges.filter(
+                    (edge) => routeDataMap.get(edge)?.isSignal
+                );
 
                 // 3. Get reference phase
                 const referenceSignalData = signalDataMap.get(referenceEdge);
                 if (!referenceSignalData) {
-                    throw new Error(`基準信号 ${referenceEdge} が signal_inf.csv に見つかりません。`);
+                    throw new Error(
+                        `基準信号 ${referenceEdge} が signal_inf.csv に見つかりません。`
+                    );
                 }
                 const referencePhase = referenceSignalData.phase;
                 console.log(`[OK] 基準位相を取得: ${referencePhase}`);
@@ -224,7 +268,7 @@ const server = http.createServer(async (req, res) => {
                 // 4. Simulate and calculate wait time
                 console.log('シミュレーションを開始...');
                 let totalWaitTime = 0;
-                let cumulativeTime = 0; 
+                let cumulativeTime = 0;
 
                 for (const edge of routeEdges) {
                     const edgeData = routeDataMap.get(edge);
@@ -238,7 +282,8 @@ const server = http.createServer(async (req, res) => {
                         if (signalData) {
                             const phaseDiff = Math.abs(signalData.phase - referencePhase);
                             const arrivalTime = cumulativeTime;
-                            const timeIntoCycle = (arrivalTime - phaseDiff + signalData.cycle) % signalData.cycle;
+                            const timeIntoCycle =
+                                (arrivalTime - phaseDiff + signalData.cycle) % signalData.cycle;
 
                             if (timeIntoCycle > signalData.green) {
                                 const waitTime = signalData.cycle - timeIntoCycle;
@@ -254,7 +299,6 @@ const server = http.createServer(async (req, res) => {
                 console.log('成功レスポンスを送信:', JSON.stringify(responsePayload));
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify(responsePayload));
-
             } catch (err) {
                 console.error('!!! /calculate-wait-time でエラー発生 !!!');
                 console.error('エラーメッセージ:', err.message);
@@ -490,7 +534,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 // ルート解析関数（サンプル実装）
-function analyzeRoutes(csvData, startNode, endNode, weights) {
+const analyzeRoutes = (csvData, startNode, endNode, weights) => {
     const lines = csvData.split('\n');
     const headers = lines[0].split(',');
     const routes = [];
@@ -517,7 +561,10 @@ function analyzeRoutes(csvData, startNode, endNode, weights) {
     }
 
     return routes;
-}
+};
+
+// 勾配を考慮した移動時間を計算する関数
+const calcTravelTime = () => {};
 
 /* ===== ポート 8081 で待ち受け ===== */
 server.listen(8081, () => {
