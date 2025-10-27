@@ -931,14 +931,14 @@
                 return { totalDistance, totalTime };
             };
 
-            const drawRouteFromResult = async (resultText, color, weight, routeId) => {
+            const drawRouteFromResult = async (result, color, weight, routeId) => {
                 const targetRoute = routeId === 1 ? route1 : route2;
 
                 targetRoute.layers.forEach((layer) => map.removeLayer(layer));
 
                 targetRoute.layers = [];
 
-                const segments = resultText.split('\n').filter((line) => line.trim() !== '');
+                const segments = result.userPref.split('\n').filter((line) => line.trim() !== '');
 
                 targetRoute.segments = segments;
 
@@ -946,7 +946,10 @@
 
                 const geojsonFolder = './oomiya_line/';
 
-                targetRoute.info = calculateRouteInfo(segments, routeData);
+                targetRoute.info = {
+                    totalDistance: result.totalDistance,
+                    totalTime: result.totalTime
+                };
 
                 updateRouteInfoDisplay();
 
@@ -976,16 +979,9 @@
 
                     await loadCSVData();
 
-                    await calc();
+                    const result = await calc();
 
-                    const response = await fetch('result2.txt');
-
-                    if (!response.ok)
-                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-
-                    const newResultText = await response.text();
-
-                    await drawRouteFromResult(newResultText, '#ff4757', 10, 1);
+                    await drawRouteFromResult(result, '#ff4757', 10, 1);
                 } catch (error) {
                     console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
 
@@ -1001,16 +997,9 @@
 
                     await loadCSVData();
 
-                    await calc();
+                    const result = await calc();
 
-                    const response = await fetch('result2.txt');
-
-                    if (!response.ok)
-                        throw new Error(`result2.txtの読み込みに失敗: ${response.statusText}`);
-
-                    const newResultText = await response.text();
-
-                    await drawRouteFromResult(newResultText, '#3742fa', 6, 2);
+                    await drawRouteFromResult(result, '#3742fa', 6, 2);
                 } catch (error) {
                     console.error('ルートの読み込みまたは計算中にエラーが発生しました:', error);
 
@@ -1471,6 +1460,7 @@
                 var weight10 = document.getElementById('weight10').value;
                 var weight11 = document.getElementById('weight11').value;
                 var weight12 = document.getElementById('weight12').value;
+                var walkingSpeed = document.getElementById('walking-speed').value;
                 const baseUrl = window.location.origin;
 
                 return fetch(`${baseUrl}/calc`, {
@@ -1490,14 +1480,17 @@
                         weight9
                     )}&weight10=${encodeURIComponent(weight10)}&weight11=${encodeURIComponent(
                         weight11
-                    )}&weight12=${encodeURIComponent(weight12)}`,
+                    )}&weight12=${encodeURIComponent(weight12)}&walkingSpeed=${encodeURIComponent(walkingSpeed)}`,
                 })
                     .then((response) => {
-                        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                        return response.text();
+                        if (!response.ok) {
+                            return response.json().then(err => { throw new Error(err.error || `HTTP error! status: ${response.status}`) });
+                        }
+                        return response.json();
                     })
                     .then((output) => {
                         console.log('計算完了:', output);
+                        return output;
                     });
             };
 
