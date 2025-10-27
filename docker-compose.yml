@@ -13,13 +13,8 @@ services:
       - ./RE_AREA.geojson:/app/RE_AREA.geojson
       - ./oomiya_route_inf_4.csv:/app/oomiya_route_inf_4.csv
       - ./result2.txt:/app/result2.txt
-<<<<<<< HEAD
-=======
       - ./signal.txt:/app/signal.txt
->>>>>>> 0ed66ae3bbe8b13fad5bb93a27239fbb855f5bdd
       - ./saving_route:/app/saving_route
-      # Ubuntu 20.04でコンパイルされた実行ファイルをマウント
-      - ./up44:/app/up44
     environment:
       - NODE_ENV=production
       - LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib
